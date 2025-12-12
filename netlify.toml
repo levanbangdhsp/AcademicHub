@@ -1,0 +1,9 @@
+[build]
+  base = ""        # Quan trọng: Xóa thiết lập sai của Netlify
+  publish = "dist" # Quan trọng: Chỉ định đúng thư mục xuất bản
+  command = "npm run build"
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
