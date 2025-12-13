@@ -572,7 +572,7 @@ export const ResearchBuilder: React.FC<ResearchBuilderProps> = ({
           } 
 
           const outline: DetailedOutline = { 
-              translatedTopic: topic, rationale: "", objectives: { general: "", specific: [] }, objects: "", hypothesis: "", tasks: [], methods: [], expectedProducts: [], structure: [], references: [] 
+              translatedTopic: topic, rationale: "", objectives: { general: "", specific: [] }, objects: "", scope: "", hypothesis: "", tasks: [], methods: [], significance: "", expectedProducts: [], structure: [], references: [] 
           };
 
           const slides = await generateSlideContent(topic, outline, contentMap, slideCount);

@@ -575,7 +575,7 @@ export const ThesisBuilder: React.FC<ThesisBuilderProps> = ({ initialProjects = 
       if (user?.role !== 'admin' && !user?.canEdit) { setShowPermissionModal(true); return; }
       setIsGeneratingSlides(true);
       try {
-          let topic = selectedTopic; let outline: DetailedOutline = outlineData || { translatedTopic: "", rationale: "", objectives: { general: "", specific: [] }, objects: "", hypothesis: "", tasks: [], methods: [], expectedProducts: [], structure: [], references: [] };
+          let topic = selectedTopic; let outline: DetailedOutline = outlineData || { translatedTopic: "", rationale: "", objectives: { general: "", specific: [] }, objects: "", scope: "", hypothesis: "", tasks: [], methods: [], significance: "", expectedProducts: [], structure: [], references: [] };
           let contentMap = { ...chapterContentMap }; if (activeChapter1Section) contentMap[activeChapter1Section] = chapter1Content;
           if (slideSource === 'upload') { if (!slideUploadText.trim()) { alert("Vui lòng nhập nội dung."); setIsGeneratingSlides(false); return; } topic = "Tài liệu tải lên"; contentMap = { "Nội dung": slideUploadText }; } 
           else if (!outlineData) { alert("Không có dữ liệu."); setIsGeneratingSlides(false); return; }
