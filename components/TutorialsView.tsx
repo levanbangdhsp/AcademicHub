@@ -239,7 +239,7 @@ export const TutorialsView: React.FC<TutorialsViewProps> = ({ onBack }) => {
                                <ul className="list-disc ml-5 text-xs text-orange-800 space-y-1">
                                    <li>Hệ thống quét toàn bộ CSDL Luận văn/Đề án đã bảo vệ của trường.</li>
                                    <li><strong>Phân tích theo Lĩnh vực:</strong> Chỉ rõ có bao nhiêu đề tài đã làm trong lĩnh vực bạn chọn (Ví dụ: "Lĩnh vực Tâm lý học đã có 15 đề tài tương tự").</li>
-                                   <li><strong>Cảnh báo Trùng lặp:</strong> Nếu tên đề tài giống &gt; 20%, hệ thống sẽ hiện cảnh báo đỏ để bạn điều chỉnh hướng nghiên cứu.</li>
+                                   <li><strong>Cảnh báo Trùng lặp:</strong> Nếu tên đề tài giống hơn 20%, hệ thống sẽ hiện cảnh báo đỏ để bạn điều chỉnh hướng nghiên cứu.</li>
                                </ul>
                           </div>
 
