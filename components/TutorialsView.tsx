@@ -77,7 +77,7 @@ export const TutorialsView: React.FC<TutorialsViewProps> = ({ onBack }) => {
                     <li className="flex items-center"><CheckCircle size={16} className="mr-2 text-green-400"/> AI Gợi ý đề tài & Dàn ý</li>
                     <li className="flex items-center"><CheckCircle size={16} className="mr-2 text-green-400"/> Phân tích số liệu & Bảng hỏi</li>
                     <li className="flex items-center"><CheckCircle size={16} className="mr-2 text-green-400"/> Check đạo văn & Paraphrase</li>
-                    <li className="flex items-center"><CheckCircle size={16} className="mr-2 text-green-400"/> Chuyển đổi Luận văn/Đề án->Bài báo</li>
+                    <li className="flex items-center"><CheckCircle size={16} className="mr-2 text-green-400"/> Chuyển đổi Luận văn/Đề án thành Bài báo</li>
                 </ul>
            </div>
       </div>
