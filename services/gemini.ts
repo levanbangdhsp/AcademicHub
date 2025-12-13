@@ -879,6 +879,7 @@ export interface IMRaD_Paper {
     title_en: string;
     abstract_en: string;
     keywords_en: string;
+    resultTableHtml?: string; // NEW: Optional field for result table HTML
 }
 
 // 6.1 Generate Paper Outline from Title/Abstract

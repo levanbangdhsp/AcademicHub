@@ -10,7 +10,7 @@ interface HomeViewProps extends Pick<TabProps, 'setActiveTab'> {
 }
 
 export const HomeView: React.FC<HomeViewProps> = ({ setActiveTab, user, thesisCount, paperCount, cachedStudentId }) => (
-  <div className="space-y-8 animate-fade-in">
+  <div className="space-y-8 animate-fade-in max-w-7xl mx-auto">
     {/* Welcome Banner */}
     <div className="bg-gradient-to-r from-blue-800 to-indigo-900 text-white rounded-3xl p-8 shadow-xl relative overflow-hidden">
         {/* Abstract Background Shapes */}

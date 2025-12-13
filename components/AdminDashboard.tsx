@@ -291,7 +291,7 @@ export const AdminDashboard: React.FC = () => {
   const passStrength = checkStrength(newStaffPassword);
 
   return (
-    <div className="bg-white rounded-2xl shadow-sm p-8 animate-fade-in border border-gray-100 min-h-[600px]">
+    <div className="bg-white rounded-2xl shadow-sm p-8 animate-fade-in border border-gray-100 min-h-[600px] max-w-7xl mx-auto">
       <div className="flex flex-col md:flex-row justify-between items-center mb-8">
         <h2 className="text-2xl font-bold text-gray-900 flex items-center mb-4 md:mb-0">
           <Shield className="mr-2 text-red-600"/> Trang Quản Trị Hệ Thống

@@ -15,7 +15,7 @@ interface LandingPageProps {
 export const LandingPage: React.FC<LandingPageProps> = ({ onOpenAuth }) => (
   <div className="animate-fade-in w-full">
     {/* Slogan Banner - Full width, no margin top to stick to header */}
-    <div className="w-full bg-gradient-to-r from-blue-900 via-indigo-900 to-blue-800 text-white py-12 text-center relative overflow-hidden shadow-xl">
+    <div className="max-w-7xl mx-auto mt-4 rounded-3xl bg-gradient-to-r from-blue-900 via-indigo-900 to-blue-800 text-white py-12 text-center relative overflow-hidden shadow-xl">
        <div className="relative z-10 px-6">
          <h1 className="text-3xl md:text-5xl font-extrabold mb-3 tracking-tight">SÁNG TẠO LÀ VÔ HẠN</h1>
          <h2 className="text-lg md:text-xl font-light italic text-blue-200">Creativity is Infinite</h2>

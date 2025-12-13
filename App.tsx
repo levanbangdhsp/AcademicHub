@@ -70,7 +70,8 @@ const App: React.FC = () => {
       />
 
       {/* Remove top padding on landing page for banner flush fit */}
-      <main className={`max-w-7xl mx-auto px-4 pb-32 flex-grow w-full ${!user && activeTab === 'landing' ? 'pt-0' : 'py-8'}`}>
+      {/* UPDATE: Removed max-w-7xl and mx-auto to make it full width */}
+      <main className={`w-full px-4 pb-32 flex-grow ${!user && activeTab === 'landing' ? 'pt-0' : 'py-8'}`}>
         
         {/* Guest Views */}
         {!user && activeTab === 'landing' && <LandingPage onOpenAuth={() => setShowAuthModal(true)} />}
