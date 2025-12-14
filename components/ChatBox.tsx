@@ -7,6 +7,7 @@ interface ChatMessage {
   id: number;
   sender: 'user' | 'bot';
   text: string;
+  suggestions?: string[]; // <--- Thêm dòng này
 }
 
 export const ChatBox: React.FC = () => {
@@ -194,7 +195,7 @@ export const ChatBox: React.FC = () => {
               className="flex-1 bg-gray-100 rounded-full px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-[#0284c7] focus:bg-white transition" 
               placeholder="Nhập câu hỏi..."
             />
-            <button onClick={handleSend} className="text-white bg-[#0284c7] hover:bg-[#0369a1] p-2 rounded-full shadow-md transition transform hover:scale-105">
+            <button onClick={() => handleSend()} className="text-white bg-[#0284c7] hover:bg-[#0369a1] p-2 rounded-full shadow-md transition transform hover:scale-105">
               <Send size={16}/>
             </button>
           </div>
