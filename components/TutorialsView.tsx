@@ -231,28 +231,59 @@ export const TutorialsView: React.FC<TutorialsViewProps> = ({ onBack }) => {
                   </button>
                   
                   {openSection === 'check' && (
-                      <div className="p-5 bg-white border-t border-orange-100 space-y-4 animate-fade-in">
-                          <p className="text-sm text-gray-700">Kiểm tra xem ý tưởng của bạn đã có ai nghiên cứu tại ĐHSP TP.HCM chưa?</p>
-                          
-                          <div className="bg-orange-50 p-4 rounded-lg border border-orange-200">
-                               <h4 className="font-bold text-orange-800 text-sm mb-2 flex items-center"><ShieldAlert size={16} className="mr-2"/> Cơ chế Quét & Cảnh báo:</h4>
-                               <ul className="list-disc ml-5 text-xs text-orange-800 space-y-1">
-                                   <li>Hệ thống quét toàn bộ CSDL Luận văn/Đề án đã bảo vệ của trường.</li>
-                                   <li><strong>Phân tích theo Lĩnh vực:</strong> Chỉ rõ có bao nhiêu đề tài đã làm trong lĩnh vực bạn chọn (Ví dụ: "Lĩnh vực Tâm lý học đã có 15 đề tài tương tự").</li>
-                                   <li><strong>Cảnh báo Trùng lặp:</strong> Nếu tên đề tài giống hơn 20%, hệ thống sẽ hiện cảnh báo đỏ để bạn điều chỉnh hướng nghiên cứu.</li>
-                               </ul>
-                          </div>
+                    <div className="p-5 bg-white border-t border-orange-100 space-y-5 animate-fade-in">
+                        <p className="text-sm text-gray-700 italic border-l-4 border-orange-400 pl-3 py-1">
+                            "Đừng bắt đầu viết khi chưa biết 'đối thủ' là ai! Đây là công cụ 2-trong-1 giúp bạn vừa tránh trùng lặp, vừa định hướng nghiên cứu."
+                        </p>
+                        
+                        {/* Khối 1: Quét trùng lặp */}
+                        <div className="bg-orange-50 p-4 rounded-xl border border-orange-200 relative overflow-hidden">
+                            <div className="absolute top-0 right-0 p-2 opacity-10"><ShieldAlert size={60} className="text-orange-600"/></div>
+                            <h4 className="font-bold text-orange-900 text-sm mb-2 flex items-center relative z-10">
+                                <ShieldAlert size={18} className="mr-2 text-orange-600"/> 1. Chốt chặn An toàn (CSDL Nội bộ)
+                            </h4>
+                            <ul className="list-disc ml-5 text-xs text-orange-800 space-y-2 relative z-10">
+                                <li><strong>Quét Siêu tốc:</strong> Rà soát 100% luận văn/đề án đã bảo vệ tại trường.</li>
+                                <li><strong>Cảnh báo Đỏ:</strong> Hệ thống tự động báo động nếu tên đề tài giống hơn 20%.</li>
+                                <li><strong>Phân tích Mật độ:</strong> Cho biết lĩnh vực bạn chọn đã "chật chội" hay còn "đất diễn" (Ví dụ: "Lĩnh vực này đã có 15 đề tài").</li>
+                            </ul>
+                        </div>
 
-                          <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
-                               <h4 className="font-bold text-blue-800 text-sm mb-2 flex items-center"><Globe size={16} className="mr-2"/> Mở rộng: Nguồn Google Scholar</h4>
-                               <p className="text-xs text-blue-800">
-                                   Không chỉ trong trường, hệ thống còn kết nối với Google Scholar để cho bạn biết:
-                                   <br/>- Có bao nhiêu nghiên cứu quốc tế về vấn đề này?
-                                   <br/>- Xu hướng nghiên cứu thế giới đang đi về đâu?
-                               </p>
-                          </div>
-                      </div>
-                  )}
+                        {/* Khối 2: AI Insight */}
+                        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-4 rounded-xl border border-blue-200 relative overflow-hidden">
+                            <div className="absolute top-0 right-0 p-2 opacity-10"><Globe size={60} className="text-blue-600"/></div>
+                            <h4 className="font-bold text-blue-900 text-sm mb-2 flex items-center relative z-10">
+                                <Sparkles size={18} className="mr-2 text-purple-600"/> 2. AI Insight & Tầm nhìn Quốc tế (Mới)
+                            </h4>
+                            <p className="text-xs text-blue-800 mb-3 relative z-10">
+                                Không chỉ tìm kiếm, AI sẽ đọc hiểu hàng nghìn bài báo trên Google Scholar để vẽ nên bức tranh toàn cảnh:
+                            </p>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 relative z-10 mt-2">
+                                {/* Card 1: Giá trị thực chiến tại VN */}
+                                <div className="bg-white p-3 rounded-lg border border-red-100 shadow-sm hover:shadow-md transition">
+                                    <div className="flex items-center mb-2">
+                                        <Lightbulb size={16} className="text-yellow-500 mr-2" />
+                                        <span className="text-xs font-bold text-red-800 uppercase">Gợi ý 'Ngách' Tiềm năng</span>
+                                    </div>
+                                    <p className="text-xs text-gray-600 leading-relaxed">
+                                        AI chỉ ra những hướng đi <strong>"vừa sức nhưng độc đáo"</strong> phù hợp bối cảnh Việt Nam, giúp bạn tránh lối mòn tư duy cũ kỹ.
+                                    </p>
+                                </div>
+
+                                {/* Card 2: Giá trị tầm nhìn Quốc tế */}
+                                <div className="bg-white p-3 rounded-lg border border-blue-100 shadow-sm hover:shadow-md transition">
+                                    <div className="flex items-center mb-2">
+                                        <Sparkles size={16} className="text-purple-500 mr-2" />
+                                        <span className="text-xs font-bold text-blue-800 uppercase">Tiếp cận Tinh hoa Thế giới</span>
+                                    </div>
+                                    <p className="text-xs text-gray-600 leading-relaxed">
+                                        Cung cấp các từ khóa <strong>"Tiên phong & Hiện đại"</strong> (State-of-the-art) mà thế giới đang áp dụng, giúp đề tài của bạn không bị lỗi thời.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    )}
               </div>
 
               {/* SECTION 4: HỒ SƠ & HÀNH CHÍNH */}

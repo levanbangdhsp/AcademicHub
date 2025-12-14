@@ -12,7 +12,7 @@ interface ChatMessage {
 export const ChatBox: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([
-    { id: 1, sender: 'bot', text: 'Chào bạn! Tôi là trợ lý AI tư vấn Tuyển sinh Sau đại học của Trường ĐHSP TP.HCM. Tôi có thể giúp gì cho bạn?' }
+    { id: 1, sender: 'bot', text: 'Chào bạn! Tôi là Trợ lý Nghiên cứu (Research Assistant). Tôi chuyên hỗ trợ về: Ý tưởng đề tài, Phương pháp nghiên cứu, Viết bài báo & Luận văn. Bạn cần giúp gì về chuyên môn không?' }
   ]);
   const [input, setInput] = useState('');
   const [isListening, setIsListening] = useState(false);
@@ -40,16 +40,28 @@ export const ChatBox: React.FC = () => {
     }, 2000);
   };
 
-  const handleSend = async () => {
-    if (!input.trim()) return;
-    const userMsg: ChatMessage = { id: Date.now(), sender: 'user', text: input };
+  // SỬA: Cho phép hàm nhận tham số 'manualText' để gửi ngay khi bấm nút
+  const handleSend = async (manualText?: string) => {
+    // Nếu có manualText (từ nút gợi ý) thì dùng nó, còn không thì dùng input (người dùng tự gõ)
+    const textToSend = typeof manualText === 'string' ? manualText : input;
+
+    if (!textToSend.trim()) return;
+    
+    // Dùng textToSend thay vì input
+    const userMsg: ChatMessage = { id: Date.now(), sender: 'user', text: textToSend };
     setMessages(prev => [...prev, userMsg]);
     setInput('');
     setIsThinking(true);
     
     try {
-      const response = await getAdmissionAdvice("Học viên quan tâm tuyển sinh", userMsg.text);
-      setMessages(prev => [...prev, { id: Date.now()+1, sender: 'bot', text: response }]);
+      // Nhận về Object (answer + suggestions)
+      const data = await getAdmissionAdvice("...", userMsg.text);
+      setMessages(prev => [...prev, { 
+          id: Date.now()+1, 
+          sender: 'bot', 
+          text: data.answer,         
+          suggestions: data.suggestions 
+      }]);
     } catch (error) {
       // Fallback response if API fails
       let reply = "Tôi chưa hiểu rõ câu hỏi. Bạn có thể nói rõ hơn không?";
@@ -121,12 +133,32 @@ export const ChatBox: React.FC = () => {
                       <img src={ROBOT_AVATAR} alt="Bot" className="w-full h-full object-cover" />
                    </div>
                 )}
-                <div className={`max-w-[80%] p-2.5 rounded-2xl text-xs shadow-sm leading-relaxed ${
-                  msg.sender==='user'
-                    ? 'bg-[#0284c7] text-white rounded-tr-none'
-                    : 'bg-white border border-gray-100 text-gray-800 rounded-tl-none'
-                }`}>
-                  {msg.text}
+                <div className={`flex flex-col max-w-[80%] ${msg.sender === 'user' ? 'items-end' : 'items-start'}`}>
+                  
+                  {/* 1. Bong bóng chat (Nội dung chính) */}
+                  <div className={`p-2.5 rounded-2xl text-xs shadow-sm leading-relaxed ${
+                    msg.sender === 'user'
+                      ? 'bg-[#0284c7] text-white rounded-tr-none'
+                      : 'bg-white border border-gray-100 text-gray-800 rounded-tl-none'
+                  }`}>
+                    {msg.text}
+                  </div>
+
+                  {/* 2. Khu vực hiển thị Gợi ý (Chỉ hiện khi là Bot và có dữ liệu suggestions) */}
+                  {msg.sender === 'bot' && msg.suggestions && msg.suggestions.length > 0 && (
+                    <div className="mt-2 flex flex-col gap-2 w-full animate-fade-in">
+                      <p className="text-[10px] text-gray-400 italic ml-1">Gợi ý câu hỏi tiếp theo:</p>
+                      {msg.suggestions.map((s, i) => (
+                        <button
+                          key={i}
+                          onClick={() => handleSend(s)}
+                          className="text-left text-xs bg-white text-blue-700 border border-blue-200 px-3 py-2 rounded-lg hover:bg-blue-50 transition shadow-sm hover:shadow-md"
+                        >
+                          {s}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             ))}

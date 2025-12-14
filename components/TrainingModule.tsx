@@ -843,7 +843,7 @@ export const TrainingModule: React.FC<TrainingModuleProps> = ({ user }) => {
                 </div>
                 <div className="h-10 w-px bg-purple-200 hidden md:block"></div>
                  <div>
-                    <a href="https://hcmue.edu.vn/vi/dao-tao/sau-dai-hoc/cao-hoc" target="_blank" rel="noreferrer" className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-2 rounded-full font-bold flex items-center shadow-lg transition">
+                    <a href="https://hcmue.edu.vn/vi/dao-tao/sau-dai-hoc/cao-hoc/chuong-trinh-dao-tao" target="_blank" rel="noreferrer" className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-2 rounded-full font-bold flex items-center shadow-lg transition">
                         <Download size={18} className="mr-2"/> Tải Khung chương trình (PDF)
                     </a>
                 </div>

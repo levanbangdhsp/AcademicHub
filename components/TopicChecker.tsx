@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { AlertCircle, CheckCircle, User, Presentation } from 'lucide-react';
+import { AlertCircle, CheckCircle, User, Presentation, Sparkles, Globe, MapPin, TrendingUp, Lightbulb } from 'lucide-react';
+import { analyzeTopicTrends } from '../services/gemini'; // Import hàm mới
 import { Topic } from '../types';
 
 const FIELDS = [
@@ -23,11 +24,30 @@ export const TopicChecker: React.FC = () => {
   const [selectedField, setSelectedField] = useState('Tất cả lĩnh vực');
   const [results, setResults] = useState<Topic[]>([]);
   const [hasSearched, setHasSearched] = useState(false);
+  // --- THÊM STATE MỚI ---
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [trendAnalysis, setTrendAnalysis] = useState<any>(null);
+
+  const handleAnalyzeTrends = async () => {
+    if (!searchTerm.trim()) return;
+    setIsAnalyzing(true);
+    setTrendAnalysis(null);
+    try {
+      const data = await analyzeTopicTrends(searchTerm);
+      setTrendAnalysis(data);
+    } catch (e) {
+      alert("Lỗi khi phân tích xu hướng.");
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
+  // ----------------------
   const [topics, setTopics] = useState<Topic[]>([]);
 
   // Fetch dữ liệu từ Google Sheet khi chọn internal
   useEffect(() => {
     if (source === 'internal') {
+      setTrendAnalysis(null); // <--- THÊM DÒNG NÀY VÀO ĐÂY (Để xóa dữ liệu AI cũ)
       const fetchTopics = async () => {
         try {
           const res = await fetch(
@@ -87,6 +107,7 @@ export const TopicChecker: React.FC = () => {
   const handleReset = () => {
     setSearchTerm('');
     setResults([]);
+    setTrendAnalysis(null); // <--- THÊM DÒNG NÀY (Để xóa bảng phân tích AI khi làm lại)
     setHasSearched(false);
   };
 
@@ -98,7 +119,7 @@ export const TopicChecker: React.FC = () => {
 
       </div>
 
-      <div className="max-w-3xl mx-auto space-y-6">
+      <div className="max-w-5xl mx-auto space-y-6">
         <div className="flex gap-6 justify-center mb-2">
           <label className="flex items-center gap-2">
             <input type="radio" value="internal" checked={source === 'internal'} onChange={() => setSource('internal')} />
@@ -124,29 +145,146 @@ export const TopicChecker: React.FC = () => {
           </div>
         )}
 
-        <div className="flex gap-2 mb-6">
-          <input 
-            type="text" 
+        {/* --- BẮT ĐẦU ĐOẠN CODE MỚI --- */}
+        <div className={source === 'google' ? "flex flex-col gap-4 mb-6" : "flex gap-2 mb-6"}>
+          
+          {/* 1. KHUNG TÌM KIẾM (Luôn hiển thị) */}
+          <textarea 
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="flex-1 border-2 border-gray-200 rounded-full pl-6 pr-14 py-4 text-lg focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-50 transition"
-            placeholder="Nhập tên đề tài hoặc từ khóa..."
+            rows={2} // Mặc định hiển thị độ cao khoảng 2 dòng
+            className="flex-1 w-full border-2 border-gray-200 rounded-3xl pl-6 pr-14 py-4 text-lg focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-50 transition resize-none flex items-center"
+            placeholder={source === 'internal' ? "Nhập tên đề tài để lọc dữ liệu..." : "Nhập từ khóa nghiên cứu chuyên sâu..."}
+            style={{ minHeight: '60px' }} // Đảm bảo chiều cao tối thiểu đẹp
           />
-          {source === 'google' && (
+
+          {/* 2. TRƯỜNG HỢP: NGUỒN ĐHSP TP.HCM (Internal) */}
+          {/* Giao diện gọn: Chỉ hiện nút Làm lại nằm cùng hàng */}
+          {source === 'internal' && (
             <button 
-              onClick={handleSearch}
-              className="bg-blue-600 text-white px-6 rounded-full hover:bg-blue-700 transition font-bold"
+              onClick={handleReset}
+              className="bg-gray-200 text-gray-700 px-6 rounded-full hover:bg-gray-300 transition font-bold whitespace-nowrap"
             >
-              Tìm
+              Làm lại
             </button>
           )}
-          <button 
-            onClick={handleReset}
-            className="bg-gray-200 text-gray-700 px-6 rounded-full hover:bg-gray-300 transition font-bold"
-          >
-            Làm lại
-          </button>
+
+          {/* 3. TRƯỜNG HỢP: GOOGLE SCHOLAR */}
+          {/* Giao diện mở rộng: Các nút xuống dòng mới, canh giữa hoặc phải */}
+          {source === 'google' && (
+            <div className="flex flex-wrap gap-3 justify-center animate-fade-in">
+              {/* Nút Tìm Google */}
+              <button 
+                onClick={handleSearch}
+                className="bg-blue-600 text-white px-8 py-3 rounded-full hover:bg-blue-700 transition font-bold shadow-lg shadow-blue-200"
+              >
+                Tìm trên Google
+              </button>
+
+              {/* Nút Phân tích AI */}
+              <button 
+                onClick={handleAnalyzeTrends}
+                disabled={isAnalyzing || !searchTerm.trim()}
+                className="bg-purple-600 text-white px-8 py-3 rounded-full hover:bg-purple-700 transition font-bold flex items-center shadow-lg shadow-purple-200"
+              >
+                {isAnalyzing ? <span className="animate-spin mr-2">⏳</span> : <Sparkles size={18} className="mr-2"/>}
+                Phân tích Xu hướng (AI)
+              </button>
+
+              {/* Nút Làm lại */}
+              <button 
+                onClick={handleReset}
+                className="bg-gray-100 text-gray-600 px-6 py-3 rounded-full hover:bg-gray-200 transition font-bold"
+              >
+                Làm lại
+              </button>
+            </div>
+          )}
         </div>
+        {/* --- KẾT THÚC ĐOẠN CODE MỚI --- */}
+
+        {/* --- PHẦN HIỂN THỊ KẾT QUẢ PHÂN TÍCH TREND --- */}
+        {trendAnalysis && (
+          <div className="animate-fade-in mb-8">
+            <h3 className="text-xl font-bold text-gray-800 mb-4 flex items-center justify-center">
+              <TrendingUp className="mr-2 text-purple-600"/> Phân tích Xu hướng Nghiên cứu (AI Insight)
+            </h3>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* CỘT VIỆT NAM */}
+              <div className="bg-red-50 border border-red-100 rounded-2xl p-6 shadow-sm">
+                <div className="flex items-center mb-4 border-b border-red-200 pb-2">
+                  <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center mr-3">
+                    <img src="https://flagcdn.com/w40/vn.png" alt="Vietnam Flag" className="w-6 h-6 object-contain" />
+                  </div>
+                  <h4 className="font-bold text-red-800 text-lg">Bối cảnh Việt Nam</h4>
+                </div>
+                
+                <div className="space-y-4">
+                  <div>
+                    <p className="text-xs font-bold text-red-500 uppercase mb-1">Độ phổ biến & Số lượng</p>
+                    <p className="font-medium text-gray-800">{trendAnalysis.vietnam?.quantity}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold text-red-500 uppercase mb-1">Xu thế & Nhận định</p>
+                    <div className="text-sm text-gray-600 leading-relaxed text-justify whitespace-pre-line">
+                      {trendAnalysis.vietnam?.trend}
+                    </div>
+                    <p className="text-sm text-red-700 mt-2 italic bg-white p-2 rounded border border-red-100">
+                      " {trendAnalysis.vietnam?.insight} "
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold text-red-500 uppercase mb-2 flex items-center"><Lightbulb size={14} className="mr-1"/> Gợi ý hướng đi phù hợp:</p>
+                    <ul className="space-y-2">
+                      {trendAnalysis.vietnam?.suggestions?.map((s: string, i: number) => (
+                        <li key={i} className="flex items-start text-sm text-gray-700">
+                          <span className="text-red-500 mr-2">•</span> {s}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              </div>
+
+              {/* CỘT THẾ GIỚI */}
+              <div className="bg-blue-50 border border-blue-100 rounded-2xl p-6 shadow-sm">
+                <div className="flex items-center mb-4 border-b border-blue-200 pb-2">
+                  <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center mr-3">
+                    <Globe className="text-blue-600" />
+                  </div>
+                  <h4 className="font-bold text-blue-800 text-lg">Bối cảnh Quốc tế</h4>
+                </div>
+
+                <div className="space-y-4">
+                  <div>
+                    <p className="text-xs font-bold text-blue-500 uppercase mb-1">Độ phổ biến</p>
+                    <p className="font-medium text-gray-800">{trendAnalysis.world?.quantity}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold text-blue-500 uppercase mb-1">Xu thế Thế giới</p>
+                  <div className="text-sm text-gray-600 leading-relaxed text-justify whitespace-pre-line">
+                    {trendAnalysis.world?.trend}
+                  </div>
+                    <p className="text-sm text-blue-700 mt-2 italic bg-white p-2 rounded border border-blue-100">
+                      " {trendAnalysis.world?.insight} "
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold text-blue-500 uppercase mb-2 flex items-center"><Lightbulb size={14} className="mr-1"/> Hướng nghiên cứu tiên tiến:</p>
+                    <ul className="space-y-2">
+                      {trendAnalysis.world?.suggestions?.map((s: string, i: number) => (
+                        <li key={i} className="flex items-start text-sm text-gray-700">
+                          <span className="text-blue-500 mr-2">•</span> {s}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {hasSearched && source === 'internal' && (
           <div className="animate-fade-in">

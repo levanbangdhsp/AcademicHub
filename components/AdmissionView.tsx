@@ -53,7 +53,7 @@ export const AdmissionView: React.FC = () => (
                     </li>
                 </ul>
                 
-                <a href="https://hcmue.edu.vn/vi/dao-tao/sau-dai-hoc/cao-hoc" target="_blank" rel="noreferrer" className="w-full bg-white border border-blue-200 text-blue-700 py-2 rounded-lg text-sm font-bold hover:bg-blue-50 transition flex items-center justify-center">
+                <a href="https://hcmue.edu.vn/vi/" target="_blank" rel="noreferrer" className="w-full bg-white border border-blue-200 text-blue-700 py-2 rounded-lg text-sm font-bold hover:bg-blue-50 transition flex items-center justify-center">
                     Xem chi tiết tại Website Trường <ExternalLink size={14} className="ml-2"/>
                 </a>
             </div>

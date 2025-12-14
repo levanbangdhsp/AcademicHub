@@ -28,6 +28,7 @@ export interface Message {
   id: number;
   sender: 'user' | 'bot';
   text: string;
+  suggestions?: string[];
 }
 
 export interface Topic {

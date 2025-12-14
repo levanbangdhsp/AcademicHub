@@ -88,6 +88,62 @@ export const checkTopicViability = async (topic: string): Promise<TopicAnalysis>
   }
 };
 
+// --- THÊM ĐOẠN NÀY VÀO services/gemini.ts ---
+
+// 1.5 Analyze Research Trends (Phân tích Xu hướng Nghiên cứu)
+export const analyzeTopicTrends = async (topic: string): Promise<any> => {
+  if (!apiKey) throw new Error("API Key missing");
+  const model = "gemini-2.5-flash"; // Hoặc gemini-2.0-flash-exp nếu có
+
+  const prompt = `Bạn là một chuyên gia phân tích xu hướng nghiên cứu khoa học.
+  Đề tài: "${topic}"
+
+  Nhiệm vụ: Hãy tìm kiếm thông tin trên Google Scholar và Internet (sử dụng Google Search Tool) để phân tích đề tài này.
+  Hãy phân tích riêng biệt cho phạm vi "Việt Nam" và "Thế giới".
+
+  Yêu cầu trả về kết quả dưới dạng JSON chuẩn (không markdown) với cấu trúc sau:
+  {
+    "vietnam": {
+      "quantity": "Nhận định về số lượng nghiên cứu tại VN (Ví dụ: Khá ít, Rất phổ biến...)",
+      "trend": "Mô tả xu hướng nghiên cứu tại VN hiện nay (tập trung vào mảng nào?)",
+      "insight": "Một nhận định sâu sắc về thực trạng tại VN",
+      "suggestions": ["Gợi ý hướng nghiên cứu 1 phù hợp bối cảnh VN", "Gợi ý 2", "Gợi ý 3"]
+    },
+    "world": {
+      "quantity": "Nhận định về độ phổ biến trên thế giới",
+      "trend": "Thế giới đang đi về hướng nào với đề tài này?",
+      "insight": "Công nghệ/Lý thuyết mới nhất thế giới đang áp dụng",
+      "suggestions": ["Hướng nghiên cứu nâng cao 1", "Hướng nghiên cứu nâng cao 2", "Hướng nghiên cứu nâng cao 3"]
+    }
+  }`;
+
+  try {
+    const response = await generateWithRetry({
+      model,
+      contents: prompt,
+      config: {
+        tools: [{ googleSearch: {} }], // Kích hoạt Search Grounding        
+      }
+    });
+
+    let text = response.text || "{}";
+    
+    // --- BẮT ĐẦU ĐOẠN MỚI ---
+    // Tìm chuỗi JSON nằm giữa dấu ngoặc nhọn đầu tiên và cuối cùng
+    const match = text.match(/\{[\s\S]*\}/);
+    if (match) {
+        text = match[0];
+    }
+    // --- KẾT THÚC ĐOẠN MỚI ---
+
+    return JSON.parse(text);
+  } catch (error) {
+    console.error("Analyze Trends Error:", error);
+    throw error;
+  }
+};
+
+
 // 2. Suggest Topics
 export const suggestResearchTopics = async (major: string, keywords?: string): Promise<string[]> => {
   if (!apiKey) throw new Error("API Key missing");
@@ -852,15 +908,56 @@ export const researchAssistant = async (query: string) => {
 export const getAdmissionAdvice = async (profile: string, question: string) => {
   if (!apiKey) throw new Error("API Key missing");
   const model = "gemini-2.5-flash";
+  // --- BẮT ĐẦU CODE MỚI ---
+  const prompt = `
+    Bạn là Trợ lý Nghiên cứu & Học thuật (Academic Research Assistant) của ĐH Sư phạm TP.HCM.
+    Người dùng đang hỏi: "${question}"
+
+    NHIỆM VỤ:
+    1. Kiểm tra xem câu hỏi có phải là thủ tục hành chính (học phí, lịch thi, tuyển sinh...) không.
+       - Nếu CÓ: Trả lời hướng dẫn người dùng qua Tab [Đào tạo] hoặc website trường. Không cần gợi ý tiếp theo.
+       - Nếu KHÔNG (Hỏi về chuyên môn NCKH, Luận văn...): Trả lời theo vai chuyên gia.
+
+    YÊU CẦU ĐỊNH DẠNG CÂU TRẢ LỜI (BẮT BUỘC JSON):
+    Hãy trả về một JSON Object với 2 trường:
+    - "answer": Nội dung trả lời. Ngắn gọn, súc tích (tối đa 150 từ). Sử dụng Markdown để trình bày đẹp.
+    - "suggestions": Một mảng chứa 2 câu hỏi ngắn (string) gợi ý người dùng nên hỏi gì tiếp theo liên quan đến chủ đề này.
+
+    VÍ DỤ OUTPUT MONG MUỐN:
+    {
+      "answer": "Để chọn đề tài luận văn tốt, bạn cần...",
+      "suggestions": ["Cách tìm khoảng trống nghiên cứu?", "Cấu trúc đề cương mẫu?"]
+    }
+  `;
+
   try {
     const response = await ai.models.generateContent({
       model,
-      contents: `User Profile: ${profile}\n\nQuestion: ${question}\n\nProvide admission advice in Vietnamese.`,
+      contents: prompt,
+      config: { responseMimeType: "application/json" } // Ép buộc trả về JSON
+    });
+
+    const text = response.text || "{}";
+    // Parse JSON từ AI để trả về Object cho giao diện dùng
+    return JSON.parse(text); 
+  } catch (error) {
+    console.error("Chat Error", error);
+    // Trả về object rỗng nếu lỗi để không crash app
+    return { 
+      answer: "Hệ thống đang bận hoặc gặp lỗi xử lý. Vui lòng thử lại câu hỏi khác.", 
+      suggestions: [] 
+    };
+  } 
+  try {
+    const response = await ai.models.generateContent({
+      model,
+      contents: prompt,
     });
     return response.text;
   } catch (error) {
     throw error;
   }
+
 };
 
 // 6. Paper Generation Features (NCKH)
