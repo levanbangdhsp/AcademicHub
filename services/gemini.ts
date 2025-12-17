@@ -528,16 +528,29 @@ export const smartWriteSection = async (
   major: string,
   projectType: string, // <--- THÊM THAM SỐ NÀY
   language: string = "Tiếng Việt",
-  styleGuide?: StyleGuide // NEW OPTIONAL PARAM
-): Promise<string> => {
+  styleGuide?: StyleGuide, // NEW OPTIONAL PARAM
+  outlineContext?: any // <--- THÊM MỚI: Tham số nhận dữ liệu đề cương
+  ): Promise<string> => {
   if (!apiKey) throw new Error("API Key missing");
   const model = "gemini-2.5-flash";
 
   // DETECT CITATION STYLE
   const defaultCitationStyle = getCitationStyle(major);
-  
-  // BUILD STYLE INSTRUCTION
-  let styleInstruction = "";
+
+  // --- THÊM MỚI: XỬ LÝ CONTEXT ĐỀ CƯƠNG ---
+  let contextPrompt = "";
+  if (outlineContext) {
+      // Chỉ lấy những thông tin quan trọng nhất để tránh quá tải token
+      contextPrompt = `
+      * THÔNG TIN QUAN TRỌNG TỪ ĐỀ CƯƠNG (BÁM SÁT ĐỂ KHÔNG LẠC ĐỀ):
+      - Lý do chọn đề tài: ${outlineContext.rationale || "N/A"}
+      - Mục tiêu: ${outlineContext.objectives?.general || "N/A"}
+      - Đối tượng/Phạm vi: ${outlineContext.objects || "N/A"} / ${outlineContext.scope || "N/A"}
+      - Giả thuyết: ${outlineContext.hypothesis || "N/A"}
+      `;
+  }
+     // BUILD STYLE INSTRUCTION
+    let styleInstruction = "";
   if (styleGuide) {
       styleInstruction = `
       *** TUÂN THỦ NGHIÊM NGẶT PHONG CÁCH SAU (STYLE TRANSFER): ***
@@ -582,6 +595,7 @@ export const smartWriteSection = async (
   Ngôn ngữ: ${language}.
 
   ${styleInstruction}
+  ${contextPrompt}  // <--- THÊM MỚI: Đưa ngữ cảnh vào prompt
   ${mandatoryEvidenceInstruction}
 
   Dữ liệu đầu vào:
@@ -859,23 +873,29 @@ export const checkPlagiarism = async (textToCheck: string): Promise<{score: numb
 };
 
 // 3.12 Paraphrase Content (Viết lại câu)
-export const paraphraseContent = async (text: string): Promise<string> => {
+// Thêm tham số language vào hàm
+export const paraphraseContent = async (text: string, language: string = "Tiếng Việt"): Promise<string> => {
   if (!apiKey) throw new Error("API Key missing");
   const model = "gemini-2.5-flash";
 
-  const prompt = `Hãy viết lại (paraphrase) đoạn văn sau để tránh đạo văn nhưng vẫn giữ nguyên ý nghĩa học thuật.
+  // Prompt Phương án B: Elaborate/Expand (Mở rộng ý)
+  const prompt = `Bạn là một biên tập viên học thuật chuyên nghiệp. Hãy viết lại (paraphrase) đoạn văn bản sau bằng ngôn ngữ: ${language}.
+  
   Văn bản gốc: "${text}"
-  Yêu cầu: Viết lại theo phong cách trang trọng, học thuật.
-  Chỉ trả về nội dung đã viết lại.`;
+  
+  Yêu cầu cụ thể:
+  1. Viết chi tiết hơn, diễn giải sâu hơn các ý tưởng (Elaborate/Expand) để làm rõ nghĩa.
+  2. Sử dụng từ vựng học thuật, trang trọng (Academic Tone).
+  3. Tuyệt đối KHÔNG cắt bớt ý. Độ dài phải DÀI HƠN hoặc BẰNG bản gốc.
+  4. Tránh đạo văn bằng cách thay đổi cấu trúc câu và từ vựng nhưng giữ nguyên ý nghĩa cốt lõi.
+  
+  Kết quả: Chỉ trả về nội dung đã viết lại (Text), không bao gồm lời dẫn.`;
 
   try {
-    // Retry here too
     const response = await generateWithRetry({
       model,
       contents: prompt,
-      config: {
-        maxOutputTokens: 2000
-      }
+      config: { maxOutputTokens: 3000 } // Tăng token để cho phép viết dài hơn
     });
     return response.text || text;
   } catch (error) {
@@ -1068,7 +1088,19 @@ export const generateFullPaper = async (
         config: { responseMimeType: "application/json", maxOutputTokens: 8192 }
     });
     
-    const paperVi = JSON.parse(responseContent.text || "{}");
+    const paperVi = JSON.parse(responseContent.text || "{}");    
+    // Hàm chuẩn hóa: Thêm dấu cách sau dấu câu (phẩy, chấm) nếu thiếu
+    const formatKeywords = (text: string) => {
+        if (!text) return "";
+        return text
+            .replace(/,([^\s])/g, ', $1')   // Thêm cách sau dấu phẩy: "a,b" -> "a, b"
+            .replace(/\.([^\s])/g, '. $1')  // Thêm cách sau dấu chấm: "a.b" -> "a. b"
+            .replace(/…([^\s])/g, '… $1');  // Thêm cách sau dấu ba chấm
+    };
+
+    if (paperVi.keywords_vi) {
+        paperVi.keywords_vi = formatKeywords(paperVi.keywords_vi);
+    }
 
     // --- BƯỚC 2: DỊCH METADATA SANG TIẾNG ANH (Tác vụ nhẹ) ---
     // Sử dụng kết quả từ Bước 1 để dịch, đảm bảo sát nghĩa nhất
@@ -1092,6 +1124,10 @@ export const generateFullPaper = async (
     });
 
     const metadataEn = JSON.parse(responseTranslate.text || "{}");
+    // --- BẮT ĐẦU ĐOẠN THÊM MỚI ---
+    if (metadataEn.keywords_en) {
+        metadataEn.keywords_en = formatKeywords(metadataEn.keywords_en);
+    }
 
     // --- BƯỚC 3: GỘP KẾT QUẢ ---
     return {

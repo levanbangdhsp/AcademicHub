@@ -401,11 +401,11 @@ export const ThesisBuilder: React.FC<ThesisBuilderProps> = ({ initialProjects = 
           };
 
           // 1. Rationale
-          const rationaleItem = findItem(["lý do", "rationale", "justification"]);
+          const rationaleItem = findItem(["lý do", "rationale", "justification", "introduction", "background", "context", "mở đầu", "đặt vấn đề", "tổng quan", "contexte", "problématique", "绪论", "背景"]);
           if (rationaleItem && outline.rationale) newContentMap[rationaleItem] = outline.rationale;
 
           // 2. Objectives
-          const objItem = findItem(["mục tiêu", "mục đích", "objectives", "objectif"]);
+          const objItem = findItem(["mục tiêu", "mục đích", "objectives", "objectif", "aims", "goals", "buts", "目标", "目的"]);
           if (objItem && outline.objectives?.general) {
               let text = `**${labels.objectives_gen}:** ${outline.objectives.general}\n\n**${labels.objectives_spe}:**\n`;
               outline.objectives.specific.forEach(s => text += `- ${s}\n`);
@@ -413,11 +413,11 @@ export const ThesisBuilder: React.FC<ThesisBuilderProps> = ({ initialProjects = 
           }
 
           // 3. Objects (Fixed: use root keywords)
-          const objectsItem = findItem(["đối tượng", "khách thể", "phạm vi", "subjects", "scope", "objets"]);
+          const objectsItem = findItem(["đối tượng", "khách thể", "phạm vi", "subjects", "scope", "objets", "sujets", "portée", "champ", "limite", "对象", "范围"]);
           if (objectsItem && outline.objects) newContentMap[objectsItem] = outline.objects;
 
           // 4. Hypothesis (Fixed: use root keywords)
-          const hypoItem = findItem(["giả thuyết", "hypothesis", "hypothèse"]);
+          const hypoItem = findItem(["giả thuyết", "hypothesis", "hypothèse", "question", "giả định", "假设"]);
           if (hypoItem && outline.hypothesis) newContentMap[hypoItem] = outline.hypothesis;
 
           // 5. Tasks (Added)
@@ -428,7 +428,7 @@ export const ThesisBuilder: React.FC<ThesisBuilderProps> = ({ initialProjects = 
           }
 
           // 6. Methods (Added)
-          const methodsItem = findItem(["phương pháp", "methods", "méthodes"]);
+          const methodsItem = findItem(["phương pháp", "methods", "méthodes", "methodology", "approach", "méthodologie", "approche", "方法"]);
           if (methodsItem && outline.methods && outline.methods.length > 0) {
               // Convert array to bullet list string
               newContentMap[methodsItem] = outline.methods.map(m => `- ${m}`).join('\n');
@@ -478,7 +478,21 @@ export const ThesisBuilder: React.FC<ThesisBuilderProps> = ({ initialProjects = 
   const handleContentChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => { setChapter1Content(e.target.value); };
   const handleAddSearchTag = (e: React.KeyboardEvent<HTMLInputElement>) => { if (e.key === 'Enter' && currentTagInput.trim()) { e.preventDefault(); if (!searchTags.includes(currentTagInput.trim())) { setSearchTags([...searchTags, currentTagInput.trim()]); } setCurrentTagInput(''); } };
   const handleRemoveTag = (tag: string) => { setSearchTags(searchTags.filter(t => t !== tag)); };
-  const handleFindEvidence = async () => { if (searchTags.length === 0) return; setIsSearchingEvidence(true); try { const results = await findResearchEvidence(searchTags); setResearchResults(results); } catch (e) { alert("Lỗi tìm kiếm."); } finally { setIsSearchingEvidence(false); } };
+  const handleFindEvidence = async () => { 
+      // ---> THÊM DÒNG NÀY <---
+      if (user?.role !== 'admin' && !user?.canEdit) { setShowPermissionModal(true); return; }
+
+      if (searchTags.length === 0) return; 
+      setIsSearchingEvidence(true); 
+      try { 
+          const results = await findResearchEvidence(searchTags); 
+          setResearchResults(results); 
+      } catch (e) { 
+          alert("Lỗi tìm kiếm."); 
+      } finally { 
+          setIsSearchingEvidence(false); 
+      } 
+  };
   const toggleEvidenceSelection = (evidence: ResearchEvidence) => { const exists = selectedEvidence.find(e => e.source === evidence.source && e.author === evidence.author); if (exists) setSelectedEvidence(selectedEvidence.filter(e => e !== exists)); else setSelectedEvidence([...selectedEvidence, evidence]); };
   
   const handleInsertCitation = (evidence: ResearchEvidence) => {
@@ -491,7 +505,7 @@ export const ThesisBuilder: React.FC<ThesisBuilderProps> = ({ initialProjects = 
       if (!activeChapter1Section) return; 
       setIsWritingSection(true); 
       try { 
-          const generatedContent = await smartWriteSection(selectedTopic, activeChapter1Section, chapter1Content, selectedEvidence, studentInfo.major, projectType, language); 
+          const generatedContent = await smartWriteSection(selectedTopic, activeChapter1Section, chapter1Content, selectedEvidence, studentInfo.major, projectType, language, undefined, outlineData); 
           setChapter1Content(generatedContent); 
       } catch (error) { 
           alert("Lỗi khi viết bài."); 
@@ -538,7 +552,7 @@ export const ThesisBuilder: React.FC<ThesisBuilderProps> = ({ initialProjects = 
               const currentText = section === activeChapter1Section ? chapter1Content : (chapterContentMap[section] || "");
               if (currentText && currentText.length > 200) { continue; }
               setChapter1Content(currentText);
-              const generated = await smartWriteSection(selectedTopic, section, currentText, selectedEvidence, studentInfo.major, projectType, language);
+              const generated = await smartWriteSection(selectedTopic, section, currentText, selectedEvidence, studentInfo.major, projectType, language, undefined, outlineData);
               setChapter1Content(generated);
               setChapterContentMap(prev => ({ ...prev, [section]: generated }));
               await new Promise(r => setTimeout(r, 1000));
@@ -666,6 +680,9 @@ export const ThesisBuilder: React.FC<ThesisBuilderProps> = ({ initialProjects = 
   };
   
   const handleGenerateSurvey = async () => {
+    // ---> THÊM DÒNG NÀY <---
+    if (user?.role !== 'admin' && !user?.canEdit) { setShowPermissionModal(true); return; }
+
     if (!activeChapter1Section) {
         alert("Vui lòng chọn một mục trong Đề cương trước.");
         return;
@@ -1152,7 +1169,7 @@ export const ThesisBuilder: React.FC<ThesisBuilderProps> = ({ initialProjects = 
               </div>
               
               <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 mb-6">
-                  <p className="text-sm font-bold text-orange-800 mb-2">Vui lòng liên hệ Admin để duyệt đề cương:</p>
+                  <p className="text-sm font-bold text-orange-800 mb-2">Vui lòng liên hệ Admin để mở khóa tính năng này:</p>
                   <ul className="space-y-2 text-sm text-gray-700">
                       <li className="flex items-center"><ArrowRight size={14} className="mr-2 text-orange-500"/> Email: <strong>Admin@edu.vn</strong></li>
                       <li className="flex items-center"><ArrowRight size={14} className="mr-2 text-orange-500"/> Điện thoại: <strong>0933686868</strong></li>

@@ -138,6 +138,7 @@ export const ResearchBuilder: React.FC<ResearchBuilderProps> = ({
   const editableTableRef = useRef<HTMLDivElement>(null);
   const activeRowRef = useRef<HTMLTableRowElement | null>(null);
   const rowToDeleteIndex = useRef<number>(-1);
+  const textareaRef = useRef<HTMLTextAreaElement>(null); 
 
   // PERMISSION STATE
   const [showPermissionModal, setShowPermissionModal] = useState(false);
@@ -292,6 +293,8 @@ export const ResearchBuilder: React.FC<ResearchBuilderProps> = ({
   };
 
   const handleConvertProject = async (project: any) => {
+        // ---> THÊM DÒNG NÀY <---
+      if (user?.role !== 'admin' && !user?.canEdit) { setShowPermissionModal(true); return; }
       setIsLoading(true);
       try {
           // 1. Fetch Content first if on Drive
@@ -330,6 +333,9 @@ export const ResearchBuilder: React.FC<ResearchBuilderProps> = ({
       }; reader.readAsArrayBuffer(file);
   };
   const handleProcessUpload = async () => {
+        // ---> THÊM DÒNG NÀY <---
+      if (user?.role !== 'admin' && !user?.canEdit) { setShowPermissionModal(true); return; }
+
       const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
       const fileName = fileInput?.files?.[0]?.name.replace('.docx', '') || "Bài báo từ file tải lên";
       setPaperData(prev => ({ ...prev, title: fileName, introduction: uploadText }));
@@ -380,15 +386,50 @@ export const ResearchBuilder: React.FC<ResearchBuilderProps> = ({
   };
 
   const handleEditorParaphrase = async () => {
-      if (user?.role !== 'admin' && !user?.canEdit) { setShowPermissionModal(true); return; }
-      setIsWriting(true);
-      try {
-          const currentContent = paperData[activeSection];
-          if (!currentContent) return;
-          const newContent = await paraphraseContent(currentContent);
-          setPaperData(prev => ({ ...prev, [activeSection]: newContent }));
-      } catch (e) { alert("Lỗi khi paraphrase."); } finally { setIsWriting(false); }
-  };
+        // Kiểm tra quyền (giữ nguyên để không lỗi logic app)
+        if (user?.role !== 'admin' && !user?.canEdit) { setShowPermissionModal(true); return; }
+        
+        // 1. Lấy nội dung hiện tại trong ô soạn thảo
+        const currentContent = paperData[activeSection] || "";
+        if (!currentContent) return;
+
+        setIsWriting(true);
+        try {
+            const textarea = textareaRef.current;
+            let textToParaphrase = currentContent;
+            let isSelection = false;
+            let start = 0;
+            let end = 0;
+
+            // 2. LOGIC QUAN TRỌNG: Kiểm tra xem người dùng có đang bôi đen không
+            if (textarea && textarea.selectionStart !== textarea.selectionEnd) {
+                start = textarea.selectionStart;
+                end = textarea.selectionEnd;
+                // Chỉ lấy đoạn văn bản nằm trong vùng bôi đen
+                textToParaphrase = currentContent.substring(start, end);
+                isSelection = true;
+            }
+
+            // 3. Gọi AI để xử lý đoạn văn bản đó
+            const newText = await paraphraseContent(textToParaphrase);
+
+            // 4. Cập nhật lại vào ô soạn thảo
+            if (isSelection) {
+                // Nếu có bôi đen: Ghép (Đoạn trước) + (Đoạn mới AI viết) + (Đoạn sau)
+                const updatedContent = currentContent.substring(0, start) + newText + currentContent.substring(end);
+                setPaperData(prev => ({ ...prev, [activeSection]: updatedContent }));
+            } else {
+                // Nếu không bôi đen: Thay thế toàn bộ
+                setPaperData(prev => ({ ...prev, [activeSection]: newText }));
+            }
+        } catch (e) { 
+            // Đây là nơi hiển thị Alert bạn đang gặp
+            console.error("Chi tiết lỗi:", e); // Xem log để biết chính xác lỗi gì
+            alert("Lỗi khi paraphrase."); 
+        } finally { 
+            setIsWriting(false); 
+        }
+    };
 
   const handleSavePaper = async () => {
       if (user?.role !== 'admin' && !user?.canEdit) { setShowPermissionModal(true); return; }
@@ -595,6 +636,9 @@ export const ResearchBuilder: React.FC<ResearchBuilderProps> = ({
 
   // --- NEW HANDLERS FOR TABLE & ANALYSIS (PHƯƠNG ÁN A) ---
   const handleGenerateTable = async () => {
+    // ---> THÊM DÒNG NÀY <---
+    if (user?.role !== 'admin' && !user?.canEdit) { setShowPermissionModal(true); return; }
+
     setIsGeneratingTable(true);
     try {
         const table = await generateSurveyTable(paperData.title, "Kết quả nghiên cứu", major);
@@ -752,7 +796,7 @@ export const ResearchBuilder: React.FC<ResearchBuilderProps> = ({
               </div>
               
               <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 mb-6">
-                  <p className="text-sm font-bold text-orange-800 mb-2">Vui lòng liên hệ Admin để duyệt đề cương:</p>
+                  <p className="text-sm font-bold text-orange-800 mb-2">Vui lòng liên hệ Admin để mở khóa tính năng này:</p>
                   <ul className="space-y-2 text-sm text-gray-700">
                       <li className="flex items-center"><ArrowRight size={14} className="mr-2 text-orange-500"/> Email: <strong>Admin@edu.vn</strong></li>
                       <li className="flex items-center"><ArrowRight size={14} className="mr-2 text-orange-500"/> Điện thoại: <strong>0933686868</strong></li>
@@ -1236,11 +1280,21 @@ export const ResearchBuilder: React.FC<ResearchBuilderProps> = ({
                               <button onClick={handleEditorParaphrase} disabled={isWriting} className="text-xs bg-white border px-3 py-1.5 rounded hover:bg-green-50 text-green-600 font-bold flex items-center disabled:opacity-50" title="Viết lại câu văn"><RefreshCw size={14} className="mr-1"/> Paraphrase</button>
                               
                               {/* Nếu đang ở mục Results -> Hiện nút Tạo Bảng */}
-                              {activeSection === 'results' && (
-                                  <button onClick={() => setShowTableModal(true)} className="text-xs bg-orange-100 border border-orange-200 px-3 py-1.5 rounded hover:bg-orange-200 text-orange-700 font-bold flex items-center">
-                                      <Table size={14} className="mr-1"/> Bảng Số liệu
-                                  </button>
-                              )}
+                                {activeSection === 'results' && (
+                                        <button 
+                                            onClick={() => {
+                                                // ---> THÊM ĐOẠN KIỂM TRA QUYỀN Ở ĐÂY <---
+                                                if (user?.role !== 'admin' && !user?.canEdit) { 
+                                                    setShowPermissionModal(true); 
+                                                    return; 
+                                                }
+                                                setShowTableModal(true);
+                                            }} 
+                                            className="text-xs bg-orange-100 border border-orange-200 px-3 py-1.5 rounded hover:bg-orange-200 text-orange-700 font-bold flex items-center"
+                                        >
+                                            <Table size={14} className="mr-1"/> Bảng Số liệu
+                                        </button>
+                                    )}
 
                               {/* Nếu đang ở mục Discussion -> Hiện nút Phân tích */}
                               {activeSection === 'discussion' && (
@@ -1276,7 +1330,7 @@ export const ResearchBuilder: React.FC<ResearchBuilderProps> = ({
                               </div>
                           </div>
                       ) : (
-                          <textarea value={paperData[activeSection] || ''} onChange={(e) => setPaperData({...paperData, [activeSection]: e.target.value})} className="flex-1 p-6 outline-none resize-none text-base leading-relaxed text-gray-800 font-serif" placeholder={`Viết nội dung cho phần ${activeSection}...`}></textarea>
+                          <textarea ref={textareaRef} value={paperData[activeSection] || ''} onChange={(e) => setPaperData({...paperData, [activeSection]: e.target.value})} className="flex-1 p-6 outline-none resize-none text-base leading-relaxed text-gray-800 font-serif" placeholder={`Viết nội dung cho phần ${activeSection}...`}></textarea>
                       )}
                   </div>
               </div>
