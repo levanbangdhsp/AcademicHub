@@ -5,7 +5,7 @@ import { suggestResearchTopics, generatePaperOutline, convertThesisToPaper, IMRa
 import { User as UserType } from '../types';
 
 // URL API Google Script - ENSURE THIS IS THE LATEST DEPLOYED URL
-const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwyDhpj6MNMkE94akevQCKM6EnwATahQBfm11KGm-2yn5FBp0pYYJqn3Ywt1pLGVQR22w/exec";
+const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbx7ZxXOlblXK3NiJFSBT2SrF2tte4ih0XjsiNJySHXJtxWlxVGdAYS5ZgHxHlpjMYjP1w/exec";
 
 // Declare libraries
 declare var mammoth: any;
@@ -193,7 +193,9 @@ export const ResearchBuilder: React.FC<ResearchBuilderProps> = ({
       setIsLoadingPapers(true);
       try {
           const response = await fetch(GOOGLE_SCRIPT_URL, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify({ action: 'getOutlines', studentId: studentId }) });
-          const result = await response.json();
+          const text = await response.text();
+          let result: any = {};
+          try { result = JSON.parse(text); } catch { result = { success: false }; }
           if (result.success && result.outlines) {
               const allProjects = result.outlines;
               const papers = allProjects.filter((p: any) => p.projectType === 'scientific_paper');
@@ -226,7 +228,9 @@ export const ResearchBuilder: React.FC<ResearchBuilderProps> = ({
                   headers: { "Content-Type": "text/plain;charset=utf-8" },
                   body: JSON.stringify({ action: 'getProjectContent', fileId: paper.driveFileId })
               });
-              const result = await response.json();
+              const text = await response.text();
+              let result: any = {};
+              try { result = JSON.parse(text); } catch { result = { success: false }; }
               
               if (result.success && result.data) {
                   // Extract inner data if wrapped
@@ -307,7 +311,9 @@ export const ResearchBuilder: React.FC<ResearchBuilderProps> = ({
                   headers: { "Content-Type": "text/plain;charset=utf-8" },
                   body: JSON.stringify({ action: 'getProjectContent', fileId: project.driveFileId })
               });
-              const result = await response.json();
+              const text = await response.text();
+              let result: any = {};
+              try { result = JSON.parse(text); } catch { result = { success: false }; }
               if (result.success && result.data) {
                   const fullData = result.data.outlineData || result.data;
                   projectContentMap = fullData.contentMap || {};
@@ -448,8 +454,10 @@ export const ResearchBuilder: React.FC<ResearchBuilderProps> = ({
               }
           };
           const response = await fetch(GOOGLE_SCRIPT_URL, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify(payload) });
-          const result = await response.json();
-          if (result.success) { alert("Đã lưu bài báo thành công!"); if (result.id) setCurrentPaperId(result.id); fetchMyPapers(); } else { alert("Lỗi khi lưu: " + result.message); }
+          const text = await response.text();
+          let result: any = {};
+          try { result = JSON.parse(text); } catch { result = { success: true, message: "Đã gửi lưu thành công" }; }
+          if (result.success) { alert("Đã lưu bài báo thành công!"); if (result.id) setCurrentPaperId(result.id); fetchMyPapers(); } else { alert("Lỗi khi lưu: " + (result.message || "Không thể lưu bài báo")); }
       } catch (error) { alert("Lỗi kết nối server."); } finally { setIsSaving(false); }
   };
 

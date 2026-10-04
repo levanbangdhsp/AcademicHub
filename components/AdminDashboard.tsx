@@ -1,12 +1,12 @@
 
 import React, { useState, useEffect } from 'react';
 import { Shield, Trash2, RefreshCw, UserPlus, Users, CheckCircle, PauseCircle, Search, AlertCircle, X, Eye, EyeOff, Undo, Lock, Unlock, RotateCcw } from 'lucide-react';
-import { User } from '../types';
+import { User, Role } from '../types';
 import { InputField, PasswordRequirements, validateEmail, checkStrength } from './AuthModal';
 
 // URL API - UPDATED
 //const GOOGLE_SCRIPT_URL: string = "https://script.google.com/macros/s/AKfycbyBzTVOLAWbCGTUy1iz1wcnZNNQUYuhEf2K5HG8whG0lSW7OM3pCdg8uMVuQHGYLeuDzw/exec"; 
-const GOOGLE_SCRIPT_URL: string = "https://script.google.com/macros/s/AKfycbwyDhpj6MNMkE94akevQCKM6EnwATahQBfm11KGm-2yn5FBp0pYYJqn3Ywt1pLGVQR22w/exec"; 
+const GOOGLE_SCRIPT_URL: string = "https://script.google.com/macros/s/AKfycbx7ZxXOlblXK3NiJFSBT2SrF2tte4ih0XjsiNJySHXJtxWlxVGdAYS5ZgHxHlpjMYjP1w/exec"; 
 
 const SHEET_ID = "1mjZfKOJW_4C_jcadBFFECwa1squ90bj1q3nIVLRXlUM";
 const ADMIN_EMAIL = 'banglv@hcmue.edu.vn';
@@ -65,21 +65,99 @@ export const AdminDashboard: React.FC = () => {
   const [userToLock, setUserToLock] = useState<User | null>(null);
   const [userMessage, setUserMessage] = useState({ text: '', type: 'success' as 'success' | 'error' });
 
+  // Helper fetch data from Google Sheet using GViz first, gsx2json as fallback
+  const fetchSheetData = async (sheetName: string): Promise<any[]> => {
+    try {
+      // 1. Try Google Sheet Gviz endpoint (Official Google endpoint)
+      const gvizRes = await fetch(
+        `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(sheetName)}`
+      ).catch(() => null);
+
+      if (gvizRes && gvizRes.ok) {
+        const rawGviz = await gvizRes.text();
+        const jsonMatch = rawGviz.match(/setResponse\((.*)\);/s);
+        if (jsonMatch && jsonMatch[1]) {
+          const parsed = JSON.parse(jsonMatch[1]);
+          const table = parsed?.table;
+          if (table && Array.isArray(table.rows)) {
+            const colLabels = (table.cols || []).map((c: any) => (c?.label || '').trim());
+            const rows: any[] = [];
+            for (let rIndex = 0; rIndex < table.rows.length; rIndex++) {
+              const r = table.rows[rIndex];
+              const cells = r.c || [];
+              const rowObj: any = {};
+              
+              colLabels.forEach((label: string, cIndex: number) => {
+                const val = cells[cIndex]?.v ?? cells[cIndex]?.f ?? '';
+                if (label) {
+                  rowObj[label] = val;
+                  rowObj[label.toLowerCase()] = val;
+                  rowObj[label.toLowerCase().replace(/\s+/g, '')] = val;
+                }
+                rowObj[`col_${cIndex}`] = val;
+              });
+
+              if (!rowObj.email && cells[1]?.v) rowObj.email = cells[1].v;
+              if (!rowObj.hovaten && cells[0]?.v) rowObj.hovaten = cells[0].v;
+              if (!rowObj.phone && cells[2]?.v) rowObj.phone = cells[2].v;
+              
+              rows.push(rowObj);
+            }
+            if (rows.length > 0) return rows;
+          }
+        }
+      }
+    } catch (e) {
+      console.warn(`GViz fetch error for ${sheetName}:`, e);
+    }
+
+    // 2. Fallback to gsx2json
+    try {
+      const res = await fetch(`https://gsx2json.com/api?id=${SHEET_ID}&sheet=${encodeURIComponent(sheetName)}`).catch(() => null);
+      if (res && res.ok) {
+        const rawText = await res.text();
+        let data: any = {};
+        try { data = JSON.parse(rawText); } catch { data = { rows: [] }; }
+        if (data && Array.isArray(data.rows) && data.rows.length > 0) {
+          return data.rows;
+        }
+      }
+    } catch (e) {
+      console.warn(`gsx2json fetch error for ${sheetName}:`, e);
+    }
+
+    return [];
+  };
+
   const fetchAndFilterUsers = async () => {
     setIsUserSearching(true);
     try {
-        const res = await fetch(`https://gsx2json.com/api?id=${SHEET_ID}&sheet=UserName`);
-        const data = await res.json();
-        if (data && data.rows) {
-            const mappedUsers: User[] = data.rows.map((row: any, idx: number) => ({
-                id: idx,
-                name: row.hovaten || row.Hovaten || row.name || 'Người dùng',
-                email: String(row.email || row.Email || row.EMAIL || '').trim().toLowerCase(), 
-                phone: row.phone || row.sodienthoai || row.Sodienthoai ? String(row.phone || row.sodienthoai || row.Sodienthoai).replace(/'/g, '') : '',
-                role: (row.role === 'admin' ? 'admin' : 'user'),
-                status: row.canedit || row.CanEdit || row.status || row.Status || row.trangthai || 'Hoạt động',
-                canEdit: row.canEdit === true || row.canedit === true || String(row.canEdit).toLowerCase() === 'true'
-            }));
+        const rows = await fetchSheetData('UserName');
+        if (rows && rows.length > 0) {
+            const mappedUsers: User[] = rows.map((row: any, idx: number) => {
+                const getVal = (keys: string[]) => {
+                   for (const k of keys) {
+                     if (row[k] !== undefined && row[k] !== null && row[k] !== '') return row[k];
+                   }
+                   return undefined;
+                };
+
+                const emailVal = getVal(['email', 'Email', 'EMAIL', 'col_1']) || '';
+                const nameVal = getVal(['hovaten', 'Hovaten', 'name', 'Name', 'Họ và tên', 'col_0']) || 'Người dùng';
+                const phoneVal = getVal(['phone', 'sodienthoai', 'Sodienthoai', 'Điện thoại', 'col_2', 'col_3']) || '';
+                const statusVal = getVal(['canedit', 'CanEdit', 'status', 'Status', 'trangthai', 'Trạng thái', 'col_4']) || 'Hoạt động';
+                const canEditVal = getVal(['canedit', 'CanEdit', 'canEdit']) === true || String(getVal(['canedit', 'CanEdit', 'canEdit'])).toLowerCase() === 'true';
+
+                return {
+                  id: idx,
+                  name: String(nameVal),
+                  email: String(emailVal).trim().toLowerCase(), 
+                  phone: phoneVal ? String(phoneVal).replace(/'/g, '') : '',
+                  role: (String(row.role || '').toLowerCase() === 'admin' || String(emailVal).toLowerCase().includes('banglv') ? 'admin' : (String(row.role || '').toLowerCase() === 'sub-admin' ? 'sub-admin' : 'user')) as Role,
+                  status: String(statusVal),
+                  canEdit: canEditVal
+                };
+            }).filter(u => u.email.length > 0);
             
             const term = normalizeSearchText(userSearchTerm);
             const filtered = mappedUsers.filter(u => 
@@ -90,7 +168,7 @@ export const AdminDashboard: React.FC = () => {
             setUserList(filtered);
         }
     } catch (error) {
-        console.error(error);
+        console.error("Fetch Users Error:", error);
     } finally {
         setIsUserSearching(false);
     }
@@ -192,6 +270,7 @@ export const AdminDashboard: React.FC = () => {
   const [newStaffEmail, setNewStaffEmail] = useState('');
   const [newStaffPassword, setNewStaffPassword] = useState('');
   const [newStaffCanEdit, setNewStaffCanEdit] = useState(false);
+  const [newStaffCanCheckAi, setNewStaffCanCheckAi] = useState(false);
   const [staffFormErrors, setStaffFormErrors] = useState({ fullName: '', email: '', password: '' });
   const [showStaffPassword, setShowStaffPassword] = useState(false);
   const [isAddingStaff, setIsAddingStaff] = useState(false);
@@ -202,17 +281,18 @@ export const AdminDashboard: React.FC = () => {
   const fetchStaffList = async () => {
     setIsFetchingStaff(true);
     try {
-      const res = await fetch(`https://gsx2json.com/api?id=${SHEET_ID}&sheet=StaffAccounts`);
-      const data = await res.json();
-      if (data && data.rows) {
-        const mapped = data.rows.map((row: any, idx: number) => {
+      const rows = await fetchSheetData('StaffAccounts');
+      if (rows && rows.length > 0) {
+        const mapped = rows.map((row: any, idx: number) => {
           // Helper: Tìm giá trị không phân biệt hoa thường
           const getVal = (keys: string[]) => {
-             for(const k of keys) if(row[k] !== undefined) return row[k];
+             for(const k of keys) if(row[k] !== undefined && row[k] !== null && row[k] !== '') return row[k];
              return undefined;
           };
 
-          const rawCanEdit = getVal(['canedit', 'CanEdit', 'canEdit', 'CANEDIT']);
+          const rawCanEdit = getVal(['canedit', 'CanEdit', 'canEdit', 'CANEDIT', 'col_4']);
+          const rawCanCheckAi = getVal(['cancheckai', 'CanCheckAi', 'canCheckAi', 'CANCHECKAI', 'quyenai', 'QuyenAI', 'aipermission', 'AIPermission', 'quyenkiemtraai', 'col_8', 'col_5']);
+
           // Robust checking for boolean TRUE
           const isTrue = (val: any) => {
               if (val === true) return true;
@@ -220,19 +300,37 @@ export const AdminDashboard: React.FC = () => {
               return str === 'true' || str === '1' || str === 'yes';
           };
 
+          const cleanEmail = String(getVal(['email', 'Email', 'EMAIL', 'col_1']) || '').trim().toLowerCase();
+          
+          let locallyGranted = false;
+          try {
+            const rawStored = localStorage.getItem('ai_granted_staff_emails');
+            if (rawStored) {
+              const list = JSON.parse(rawStored);
+              if (Array.isArray(list) && list.some(e => String(e).trim().toLowerCase() === cleanEmail)) locallyGranted = true;
+            }
+          } catch(e) {}
+
+          const canCheckAiVal = cleanEmail === ADMIN_EMAIL.toLowerCase() ? true : (isTrue(rawCanCheckAi) || locallyGranted);
+
           return {
             id: idx,
-            name: getVal(['hovaten', 'Hovaten', 'name', 'Name']) || 'Cán bộ',
-            // Normalize Email here
-            email: String(getVal(['email', 'Email', 'EMAIL']) || '').trim().toLowerCase(),
-            role: getVal(['role', 'Role']) || 'sub-admin',
-            status: getVal(['status', 'Status', 'trangthai']) || 'Hoạt động',
-            canEdit: isTrue(rawCanEdit)
+            name: getVal(['hovaten', 'Hovaten', 'name', 'Name', 'Họ và tên', 'col_0']) || 'Cán bộ',
+            email: cleanEmail,
+            role: getVal(['role', 'Role', 'col_3']) || 'sub-admin',
+            status: getVal(['status', 'Status', 'trangthai', 'col_4']) || 'Hoạt động',
+            canEdit: isTrue(rawCanEdit),
+            canCheckAi: canCheckAiVal
           };
-        });
+        }).filter((s: any) => s.email.length > 0);
         setStaffList(mapped);
+
+        // Sync granted AI emails to localStorage for real-time appwide access
+        const aiEmails = mapped.filter((s: any) => s.canCheckAi).map((s: any) => s.email.toLowerCase());
+        if (!aiEmails.includes(ADMIN_EMAIL.toLowerCase())) aiEmails.push(ADMIN_EMAIL.toLowerCase());
+        localStorage.setItem('ai_granted_staff_emails', JSON.stringify(aiEmails));
       }
-    } catch (e) { console.error(e); }
+    } catch (e) { console.error("Fetch Staff Error:", e); }
     finally { setIsFetchingStaff(false); }
   };
 
@@ -259,11 +357,37 @@ export const AdminDashboard: React.FC = () => {
     if (hasError) return;
 
     setIsAddingStaff(true);
-    // Normalize Email before sending
-    const res = await callAdminApi({ action: 'addStaff', fullName: newStaffFullName, email: newStaffEmail.trim().toLowerCase(), password: newStaffPassword, canEdit: newStaffCanEdit });
+    const cleanEmail = newStaffEmail.trim().toLowerCase();
+    const res = await callAdminApi({ 
+      action: 'addStaff', 
+      fullName: newStaffFullName, 
+      email: cleanEmail, 
+      password: newStaffPassword, 
+      canEdit: newStaffCanEdit,
+      canCheckAi: newStaffCanCheckAi,
+      CanCheckAi: newStaffCanCheckAi
+    });
+
     if (res.success) {
         setStaffMessage({ text: 'Thêm cán bộ thành công!', type: 'success' });
-        setNewStaffFullName(''); setNewStaffEmail(''); setNewStaffPassword(''); setNewStaffCanEdit(false);
+        
+        // Update local storage if granted AI
+        if (newStaffCanCheckAi) {
+          try {
+            const raw = localStorage.getItem('ai_granted_staff_emails');
+            const list: string[] = raw ? JSON.parse(raw) : [];
+            if (!list.includes(cleanEmail)) {
+              list.push(cleanEmail);
+              localStorage.setItem('ai_granted_staff_emails', JSON.stringify(list));
+            }
+          } catch(e) {}
+        }
+
+        setNewStaffFullName(''); 
+        setNewStaffEmail(''); 
+        setNewStaffPassword(''); 
+        setNewStaffCanEdit(false);
+        setNewStaffCanCheckAi(false);
         fetchStaffList();
     } else {
         setStaffMessage({ text: res.message || 'Lỗi khi thêm', type: 'error' });
@@ -276,10 +400,40 @@ export const AdminDashboard: React.FC = () => {
     setStaffActionStatus(prev => ({ ...prev, [cleanEmail]: { ...prev[cleanEmail], [actionName]: true } }));
     try {
         const res = await callAdminApi({ action: actionName, email: cleanEmail, ...payload });
-        if (res.success) fetchStaffList();
-        else alert(res.message);
-    } catch (e: any) { alert(e.message); }
+        if (res.success) {
+          fetchStaffList();
+          setStaffMessage({ text: 'Thao tác thành công!', type: 'success' });
+        } else {
+          setStaffMessage({ text: res.message || 'Thao tác không thành công', type: 'error' });
+        }
+    } catch (e: any) { 
+      setStaffMessage({ text: e.message || 'Lỗi kết nối', type: 'error' });
+    }
     finally { setStaffActionStatus(prev => ({ ...prev, [cleanEmail]: { ...prev[cleanEmail], [actionName]: false } })); }
+  };
+
+  const toggleStaffAiPermission = async (staffEmail: string, currentVal: boolean) => {
+    const cleanEmail = staffEmail.trim().toLowerCase();
+    const newVal = !currentVal;
+
+    // Instant local state update
+    setStaffList(prev => prev.map(s => s.email === cleanEmail ? { ...s, canCheckAi: newVal } : s));
+
+    // Update local storage for real-time permission sync
+    try {
+      const rawStored = localStorage.getItem('ai_granted_staff_emails');
+      let list: string[] = rawStored ? JSON.parse(rawStored) : [];
+      if (!Array.isArray(list)) list = [];
+      if (newVal) {
+        if (!list.includes(cleanEmail)) list.push(cleanEmail);
+      } else {
+        list = list.filter(e => e !== cleanEmail);
+      }
+      localStorage.setItem('ai_granted_staff_emails', JSON.stringify(list));
+    } catch (e) {}
+
+    // Call API backend
+    await performStaffAction(cleanEmail, 'updateStaffCanCheckAi', { canCheckAi: newVal, CanCheckAi: newVal });
   };
 
   const confirmDeleteStaff = async () => {
@@ -413,12 +567,18 @@ export const AdminDashboard: React.FC = () => {
                     </div>
                 </div>
                 {newStaffPassword && <PasswordRequirements passStrength={passStrength} />}
-                <div className="flex justify-between items-center mt-4">
-                    <label className="flex items-center cursor-pointer">
-                        <input type="checkbox" checked={newStaffCanEdit} onChange={e=>setNewStaffCanEdit(e.target.checked)} className="h-4 w-4 text-blue-600 rounded" />
-                        <span className="ml-2 text-sm text-gray-700">Cấp quyền Ghi (Edit)</span>
-                    </label>
-                    <button disabled={isAddingStaff} type="submit" className="bg-blue-600 text-white px-6 py-2 rounded-lg font-bold hover:bg-blue-700 disabled:bg-blue-300">
+                <div className="flex flex-wrap justify-between items-center gap-4 mt-4 pt-3 border-t border-gray-200">
+                    <div className="flex flex-wrap items-center gap-6">
+                        <label className="flex items-center cursor-pointer">
+                            <input type="checkbox" checked={newStaffCanEdit} onChange={e=>setNewStaffCanEdit(e.target.checked)} className="h-4 w-4 text-blue-600 rounded cursor-pointer" />
+                            <span className="ml-2 text-sm text-gray-700 font-medium">Cấp quyền Ghi (Edit)</span>
+                        </label>
+                        <label className="flex items-center cursor-pointer bg-purple-50 px-3 py-1.5 rounded-lg border border-purple-200 shadow-xs">
+                            <input type="checkbox" checked={newStaffCanCheckAi} onChange={e=>setNewStaffCanCheckAi(e.target.checked)} className="h-4 w-4 text-purple-600 rounded cursor-pointer" />
+                            <span className="ml-2 text-sm text-purple-900 font-bold">Cấp quyền Kiểm tra AI</span>
+                        </label>
+                    </div>
+                    <button disabled={isAddingStaff} type="submit" className="bg-blue-600 text-white px-6 py-2 rounded-lg font-bold hover:bg-blue-700 disabled:bg-blue-300 cursor-pointer shadow-sm">
                         {isAddingStaff ? 'Đang thêm...' : 'Thêm Cán bộ'}
                     </button>
                 </div>
@@ -428,10 +588,11 @@ export const AdminDashboard: React.FC = () => {
                 <table className="w-full text-sm text-left">
                     <thead className="bg-blue-600 text-white font-semibold">
                         <tr>
-                            <th className="p-3">STT</th>
+                            <th className="p-3 text-center">STT</th>
                             <th className="p-3">Họ và tên</th>
                             <th className="p-3">Email</th>
                             <th className="p-3">Quyền hạn</th>
+                            <th className="p-3">Cấp quyền AI</th>
                             <th className="p-3">Trạng thái</th>
                             <th className="p-3 text-center">Hành động</th>
                         </tr>
@@ -441,12 +602,30 @@ export const AdminDashboard: React.FC = () => {
                             <tr key={index} className="border-b last:border-0 hover:bg-gray-50">
                                 <td className="p-3 text-center">{index+1}</td>
                                 <td className="p-3 font-medium">{staff.name}</td>
-                                <td className="p-3 text-gray-600">{staff.email} {staff.email === ADMIN_EMAIL && <span className="text-blue-600 font-bold">(Admin)</span>}</td>
+                                <td className="p-3 text-gray-600 font-mono text-xs">{staff.email} {staff.email === ADMIN_EMAIL && <span className="text-blue-600 font-bold">(Admin)</span>}</td>
                                 <td className="p-3">
                                     {staff.email === ADMIN_EMAIL ? <span className="font-bold text-blue-600">Toàn quyền</span> : (
                                         <label className="flex items-center cursor-pointer">
-                                            <input type="checkbox" checked={staff.canEdit} onChange={e => performStaffAction(staff.email, 'updateStaffCanEdit', { canEdit: e.target.checked })} disabled={staffActionStatus[staff.email]?.['updateStaffCanEdit']} className="mr-2 h-4 w-4 text-blue-600 rounded disabled:opacity-50" />
+                                            <input type="checkbox" checked={staff.canEdit} onChange={e => performStaffAction(staff.email, 'updateStaffCanEdit', { canEdit: e.target.checked })} disabled={staffActionStatus[staff.email]?.['updateStaffCanEdit']} className="mr-2 h-4 w-4 text-blue-600 rounded disabled:opacity-50 cursor-pointer" />
                                             <span className={staff.canEdit ? 'text-green-600 font-medium' : 'text-gray-500'}>{staff.canEdit ? 'Đọc & Ghi' : 'Chỉ đọc'}</span>
+                                        </label>
+                                    )}
+                                </td>
+                                <td className="p-3">
+                                    {staff.email === ADMIN_EMAIL ? (
+                                        <span className="font-bold text-purple-700 bg-purple-100 px-2.5 py-1 rounded-full border border-purple-200 inline-block text-xs">Toàn quyền</span>
+                                    ) : (
+                                        <label className="flex items-center cursor-pointer">
+                                            <input 
+                                                type="checkbox" 
+                                                checked={!!staff.canCheckAi} 
+                                                onChange={() => toggleStaffAiPermission(staff.email, !!staff.canCheckAi)} 
+                                                disabled={staffActionStatus[staff.email]?.['updateStaffCanCheckAi']} 
+                                                className="mr-2 h-4 w-4 text-purple-600 rounded disabled:opacity-50 cursor-pointer" 
+                                            />
+                                            <span className={`text-xs font-bold px-2 py-0.5 rounded-full border ${staff.canCheckAi ? 'text-purple-700 bg-purple-50 border-purple-300' : 'text-gray-400 bg-gray-50 border-gray-200'}`}>
+                                                {staffActionStatus[staff.email]?.['updateStaffCanCheckAi'] ? '...' : (staff.canCheckAi ? '✓ Được phép' : 'Chưa cấp')}
+                                            </span>
                                         </label>
                                     )}
                                 </td>
@@ -454,11 +633,11 @@ export const AdminDashboard: React.FC = () => {
                                 <td className="p-3 flex justify-center gap-2">
                                     {staff.email !== ADMIN_EMAIL && (
                                         <>
-                                            <button onClick={() => performStaffAction(staff.email, 'updateStaffStatus', { status: staff.status==='Hoạt động'?'Tạm dừng':'Hoạt động' })} disabled={staffActionStatus[staff.email]?.['updateStaffStatus']} className="text-blue-600 hover:bg-blue-50 p-1 rounded">
+                                            <button onClick={() => performStaffAction(staff.email, 'updateStaffStatus', { status: staff.status==='Hoạt động'?'Tạm dừng':'Hoạt động' })} disabled={staffActionStatus[staff.email]?.['updateStaffStatus']} className="text-blue-600 hover:bg-blue-50 p-1 rounded cursor-pointer">
                                                 {staffActionStatus[staff.email]?.['updateStaffStatus'] ? '...' : (staff.status==='Hoạt động'?'Tạm dừng':'Kích hoạt')}
                                             </button>
                                             <span className="text-gray-300">|</span>
-                                            <button onClick={() => setStaffToDelete(staff)} className="text-red-600 hover:bg-red-50 p-1 rounded">Xóa</button>
+                                            <button onClick={() => setStaffToDelete(staff)} className="text-red-600 hover:bg-red-50 p-1 rounded cursor-pointer">Xóa</button>
                                         </>
                                     )}
                                 </td>

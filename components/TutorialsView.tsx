@@ -3,7 +3,7 @@ import {
   UserPlus, FileText, GraduationCap, Search, PenTool, ArrowLeft, 
   Info, Sparkles, RefreshCw, ShieldAlert, CheckCircle, Lightbulb, 
   ArrowRight, BookOpen, User, Settings, HelpCircle, ChevronDown, ChevronUp, Star,
-  Table, FileDown, Microscope, AlertTriangle, Upload, Wrench, Globe
+  Table, FileDown, Microscope, AlertTriangle, Upload, Wrench, Globe, Bot, ShieldCheck, Download
 } from 'lucide-react';
 
 interface TutorialsViewProps {
@@ -13,12 +13,14 @@ interface TutorialsViewProps {
 const FAQ_DATA = [
     { q: "Tôi có thể sử dụng tài khoản Google cá nhân để đăng nhập không?", a: "Hiện tại hệ thống hỗ trợ đăng ký tài khoản mới bằng Email bất kỳ. Trong tương lai sẽ tích hợp đăng nhập Google/SSO." },
     { q: "Làm sao để biết đề tài của tôi có bị trùng lặp không?", a: "Bạn vào tab 'Tra cứu Đề tài', nhập tên đề tài dự kiến. Hệ thống sẽ quét CSDL luận văn, đề án đã bảo vệ của trường để kiểm tra và cảnh báo nếu có sự trùng lặp ý tưởng." },
+    { q: "Tính năng Kiểm tra AI & Viết lại học thuật hoạt động như thế nào?", a: "Hệ thống sử dụng mô hình Gemini 3.8 Flash chuyên sâu kết hợp đối chiếu Google Search thời gian thực. Hệ thống quét từng câu, tính toán tỷ lệ AI, truy vết nguồn tài liệu lý thuyết gốc và cung cấp tính năng viết lại tự nhiên (Humanize 1-Click) để vượt qua các cổng kiểm định Turnitin/GPTZero mà vẫn bảo toàn 100% nội dung chuyên môn." },
     { q: "File hồ sơ nộp bổ sung kiến thức cần định dạng gì?", a: "Hệ thống chấp nhận file PDF hoặc file nén (ZIP/RAR) chứa toàn bộ giấy tờ cần thiết. Dung lượng tối đa 10MB." },
     { q: "AI có viết thay tôi toàn bộ luận văn, đề án không?", a: "KHÔNG. AI chỉ đóng vai trò trợ lý: gợi ý dàn ý, viết nháp từng phần, sửa lỗi diễn đạt và thẩm định logic. Bạn chịu trách nhiệm chính về nội dung khoa học." },
     { q: "Làm thế nào để chuyển Luận văn, đề án thành Bài báo?", a: "Vào tab 'NCKH', chọn 'Chuyển đổi từ Nghiên cứu', chọn dự án luận văn, đề án. AI sẽ tóm tắt và định dạng lại theo chuẩn bài báo IMRaD." },
 ];
 
 const TIPS_DATA = [
+    "💡 Mẹo: Khi quét AI, sử dụng tính năng 'Tự động sửa toàn bộ các đoạn AI' để hệ thống tự khử sáo rỗng và chuẩn hóa văn phong học thuật chỉ với 1 click.",
     "💡 Mẹo: Khi nhờ AI viết, hãy cung cấp càng nhiều dữ liệu đầu vào (số liệu, dẫn chứng) càng tốt để bài viết có độ chính xác cao.",
     "💡 Mẹo: Sử dụng tính năng 'Paraphrase' nhiều lần cho cùng một đoạn văn để tìm ra cách diễn đạt ưng ý nhất.",
     "💡 Mẹo: Luôn kiểm tra lại danh sách 'Tài liệu tham khảo' mà AI gợi ý để đảm bảo nguồn tin cậy.",
@@ -26,7 +28,7 @@ const TIPS_DATA = [
 ];
 
 export const TutorialsView: React.FC<TutorialsViewProps> = ({ onBack }) => {
-  const [openSection, setOpenSection] = useState<string | null>('thesis');
+  const [openSection, setOpenSection] = useState<string | null>('ai_detector');
   const [openFaq, setOpenFaq] = useState<number | null>(null);
 
   const toggleSection = (section: string) => {
@@ -68,16 +70,16 @@ export const TutorialsView: React.FC<TutorialsViewProps> = ({ onBack }) => {
                </div>
                <h2 className="text-3xl md:text-4xl font-extrabold mb-4 leading-tight">Làm chủ Nghiên cứu với<br/><span className="text-yellow-300">Trợ lý AI Toàn năng</span></h2>
                <p className="text-blue-100 text-lg mb-6 leading-relaxed">
-                   Hệ thống hỗ trợ toàn diện cho học viên sau đại học: Từ nộp hồ sơ, tra cứu tên đề tài đến viết luận văn, đề án, tiểu luận môn học, bài tập nhóm và công bố quốc tế chuẩn IMRaD.
+                   Hệ thống hỗ trợ toàn diện cho học viên sau đại học: Từ nộp hồ sơ, tra cứu tên đề tài, viết luận văn đến kiểm định AI chuyên sâu và công bố quốc tế chuẩn IMRaD.
                </p>
            </div>
            <div className="w-full md:w-1/3 bg-white/10 backdrop-blur-sm rounded-2xl p-6 border border-white/20 z-10">
                 <h3 className="font-bold text-lg mb-4 flex items-center"><Star size={18} className="mr-2 text-yellow-300"/> Tính năng nổi bật</h3>
                 <ul className="space-y-3 text-sm text-blue-50">
+                    <li className="flex items-center"><CheckCircle size={16} className="mr-2 text-emerald-400"/> Kiểm định AI & Viết lại học thuật</li>
                     <li className="flex items-center"><CheckCircle size={16} className="mr-2 text-green-400"/> AI Gợi ý đề tài & Dàn ý</li>
                     <li className="flex items-center"><CheckCircle size={16} className="mr-2 text-green-400"/> Phân tích số liệu & Bảng hỏi</li>
-                    <li className="flex items-center"><CheckCircle size={16} className="mr-2 text-green-400"/> Check đạo văn & Paraphrase</li>
-                    <li className="flex items-center"><CheckCircle size={16} className="mr-2 text-green-400"/> Chuyển đổi Luận văn/Đề án thành Bài báo</li>
+                    <li className="flex items-center"><CheckCircle size={16} className="mr-2 text-green-400"/> Chuyển đổi Luận văn thành Bài báo</li>
                 </ul>
            </div>
       </div>
@@ -304,6 +306,93 @@ export const TutorialsView: React.FC<TutorialsViewProps> = ({ onBack }) => {
                               <li><strong>Cập nhật hồ sơ:</strong> Nếu nộp sai, chỉ cần vào lại bằng Email cũ, hệ thống sẽ tải lại hồ sơ để bạn chỉnh sửa và cập nhật.</li>
                               <li><strong>In Biên nhận:</strong> Xuất file Word (.doc) biên nhận hồ sơ để lưu làm bằng chứng.</li>
                           </ul>
+                      </div>
+                  )}
+              </div>
+
+              {/* SECTION 5: KIỂM ĐỊNH AI & ĐẠO VĂN HỌC THUẬT (MỚI & ĐỘT PHÁ) */}
+              <div className="border-2 border-indigo-200 rounded-xl overflow-hidden shadow-md bg-gradient-to-br from-indigo-50/40 to-white">
+                  <button 
+                      onClick={() => toggleSection('ai_detector')}
+                      className={`w-full flex justify-between items-center p-4 font-bold text-left transition ${openSection === 'ai_detector' ? 'bg-indigo-600 text-white' : 'bg-indigo-50/80 hover:bg-indigo-100 text-indigo-950'}`}
+                  >
+                      <div className="flex items-center">
+                        <Bot size={22} className={`mr-3 ${openSection === 'ai_detector' ? 'text-yellow-300' : 'text-indigo-600'}`}/> 
+                        <span>Kiểm định AI & Đối chiếu Đạo văn Chuyên sâu (Gemini 3.8 Flash)</span>
+                        <span className={`ml-3 text-[11px] uppercase tracking-wider font-extrabold px-2.5 py-0.5 rounded-full ${openSection === 'ai_detector' ? 'bg-yellow-400 text-indigo-950' : 'bg-indigo-200 text-indigo-900'}`}>
+                          Đột phá
+                        </span>
+                      </div>
+                      {openSection === 'ai_detector' ? <ChevronUp size={20}/> : <ChevronDown size={20}/>}
+                  </button>
+                  
+                  {openSection === 'ai_detector' && (
+                      <div className="p-6 bg-white border-t border-indigo-100 space-y-6 animate-fade-in">
+                          <p className="text-sm text-gray-700 italic border-l-4 border-indigo-500 pl-3 py-1">
+                            "Hệ thống kiểm định học thuật thế hệ mới: Quét siêu tốc, phân tích đa chiều nhịp điệu câu và tự động viết lại tự nhiên để văn bản vượt qua mọi cổng quét đạo văn (Turnitin, GPTZero, Winston AI)."
+                          </p>
+
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {/* Feature 1: Quét siêu tốc & Chính xác */}
+                            <div className="p-4 rounded-2xl bg-indigo-50/60 border border-indigo-100 space-y-2">
+                              <h4 className="font-bold text-indigo-900 text-sm flex items-center gap-2">
+                                <Sparkles size={16} className="text-indigo-600" />
+                                1. Quét Siêu tốc & Đo lường Đa chiều
+                              </h4>
+                              <p className="text-xs text-gray-600 leading-relaxed">
+                                Xử lý trọn vẹn văn bản dài tới <strong>80–100 trang A4</strong> chỉ trong vài giây. Tính toán chính xác chỉ số <strong>Nhịp câu (Burstiness)</strong> và <strong>Độ phức hợp từ vựng (Perplexity)</strong> để nhận diện chính xác sự can thiệp của AI.
+                              </p>
+                            </div>
+
+                            {/* Feature 2: Tô màu cảnh báo đa tầng */}
+                            <div className="p-4 rounded-2xl bg-red-50/60 border border-red-100 space-y-2">
+                              <h4 className="font-bold text-red-900 text-sm flex items-center gap-2">
+                                <AlertTriangle size={16} className="text-red-600" />
+                                2. Tô màu Cảnh báo Trực quan Đa tầng
+                              </h4>
+                              <p className="text-xs text-gray-600 leading-relaxed">
+                                Phân vùng trực quan: <strong className="text-red-700">Đỏ (&gt;70%)</strong> - Nguy cơ AI cao; <strong className="text-amber-700">Vàng (40-70%)</strong> - Nghi vấn lai tạo/lý thuyết chung; <strong className="text-emerald-700">Xanh (&lt;40%)</strong> - Tự nhiên nguyên bản.
+                              </p>
+                            </div>
+
+                            {/* Feature 3: Truy vết nguồn & Trích dẫn */}
+                            <div className="p-4 rounded-2xl bg-amber-50/60 border border-amber-100 space-y-2">
+                              <h4 className="font-bold text-amber-950 text-sm flex items-center gap-2">
+                                <BookOpen size={16} className="text-amber-700" />
+                                3. Truy vết Nguồn & Gợi ý Trích dẫn Chuẩn
+                              </h4>
+                              <p className="text-xs text-gray-600 leading-relaxed">
+                                Bóc tách trường phái lý thuyết, tác giả hoặc giáo trình gốc mà AI đã tổng hợp, cung cấp sẵn mẫu trích dẫn <strong>APA 7th / IEEE</strong> chuẩn mực để bổ sung vào danh mục tham khảo, tránh bị quy vào lỗi đạo văn ý tưởng.
+                              </p>
+                            </div>
+
+                            {/* Feature 4: Khử sáo rỗng & Viết lại tự nhiên */}
+                            <div className="p-4 rounded-2xl bg-emerald-50/60 border border-emerald-100 space-y-2">
+                              <h4 className="font-bold text-emerald-950 text-sm flex items-center gap-2">
+                                <ShieldCheck size={16} className="text-emerald-700" />
+                                4. Khử Sáo rỗng & Viết lại Tự nhiên (1-Click)
+                              </h4>
+                              <p className="text-xs text-gray-600 leading-relaxed">
+                                Tự động xóa bỏ các từ đệm sáo rỗng rập khuôn máy móc, tái cấu trúc lập luận học thuật sắc bén, biến thiên câu linh hoạt giúp hạ tỷ lệ AI xuống <strong>&lt; 5%</strong> mà vẫn bảo toàn 100% nội dung khoa học.
+                              </p>
+                            </div>
+                          </div>
+
+                          {/* Feature 5: Xuất file Word chuẩn Turnitin */}
+                          <div className="p-4 rounded-2xl bg-gray-50 border border-gray-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                            <div>
+                              <h4 className="font-bold text-gray-900 text-sm flex items-center gap-2">
+                                <Download size={16} className="text-blue-600" />
+                                Xuất Báo cáo Word Chuẩn Định dạng & Bản sạch
+                              </h4>
+                              <p className="text-xs text-gray-600 mt-0.5">
+                                Xuất file Word (.doc) có bảng thống kê kiểm định Turnitin ở đầu trang hoặc xuất bản sạch không màu sẵn sàng in ấn nộp hội đồng.
+                              </p>
+                            </div>
+                            <span className="px-3 py-1 rounded-full text-xs font-bold bg-blue-100 text-blue-800 whitespace-nowrap">
+                              Bảo mật 100% tại RAM
+                            </span>
+                          </div>
                       </div>
                   )}
               </div>

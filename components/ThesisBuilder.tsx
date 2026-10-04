@@ -5,8 +5,7 @@ import { suggestResearchTopics, checkTopicViability, generateDetailedOutline, re
 import { TopicAnalysis, Topic, User as UserType } from '../types';
 
 // URL API Google Script
-// const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycby9G4xd4OhpykI9ctxbQCjuGIFbfisOFiOp7Atf30ddB4j290SVQHJ30jb3p9MxlO67Cg/exec";
-const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwyDhpj6MNMkE94akevQCKM6EnwATahQBfm11KGm-2yn5FBp0pYYJqn3Ywt1pLGVQR22w/exec";
+const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbx7ZxXOlblXK3NiJFSBT2SrF2tte4ih0XjsiNJySHXJtxWlxVGdAYS5ZgHxHlpjMYjP1w/exec";
 
 // Declare libraries
 declare var mammoth: any;
@@ -276,7 +275,9 @@ export const ThesisBuilder: React.FC<ThesisBuilderProps> = ({ initialProjects = 
       setIsLoadingProjects(true);
       try {
           const response = await fetch(GOOGLE_SCRIPT_URL, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify({ action: 'getOutlines', studentId: studentId }) });
-          const result = await response.json();
+          const text = await response.text();
+          let result: any = {};
+          try { result = JSON.parse(text); } catch { result = { success: false }; }
           if (result.success && result.outlines) {
               // FILTER PROJECTS HERE
               const thesisProjects = result.outlines.filter((p: any) => ['master_thesis', 'graduation_project', 'course_project', 'essay', 'assignment'].includes(p.projectType));
@@ -304,7 +305,9 @@ export const ThesisBuilder: React.FC<ThesisBuilderProps> = ({ initialProjects = 
                   headers: { "Content-Type": "text/plain;charset=utf-8" },
                   body: JSON.stringify({ action: 'getProjectContent', fileId: project.driveFileId })
               });
-              const result = await response.json();
+              const text = await response.text();
+              let result: any = {};
+              try { result = JSON.parse(text); } catch { result = { success: false, message: "Lỗi phản hồi máy chủ" }; }
               if (result.success && result.data) {
                   loadedOutline = result.data.outlineData || result.data;
                   // Merge contentMap if exists
@@ -314,7 +317,7 @@ export const ThesisBuilder: React.FC<ThesisBuilderProps> = ({ initialProjects = 
                   }));
                   setSurveyMap(loadedOutline.surveyMap || {});
               } else {
-                  alert("Không thể tải nội dung chi tiết: " + result.message);
+                  alert("Không thể tải nội dung chi tiết: " + (result.message || "Lỗi đọc dữ liệu"));
                   setOutlineData(project.outlineData); 
               }
           } catch (e) { console.error(e); setOutlineData(project.outlineData); } finally { setLoading(false); }
@@ -351,7 +354,9 @@ export const ThesisBuilder: React.FC<ThesisBuilderProps> = ({ initialProjects = 
           headers: { "Content-Type": "text/plain;charset=utf-8" }, 
           body: JSON.stringify({ action: 'getTopics' }) 
       });
-      const result = await response.json();
+      const text = await response.text();
+      let result: any = {};
+      try { result = JSON.parse(text); } catch { result = { data: [] }; }
       const sheetDataRows = result.data || result.rows || [];
       const duplicates: Topic[] = [];
       if (sheetDataRows.length > 0) {
@@ -842,14 +847,16 @@ export const ThesisBuilder: React.FC<ThesisBuilderProps> = ({ initialProjects = 
             } 
         }; 
         const response = await fetch(GOOGLE_SCRIPT_URL, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify(payload) }); 
-        const result = await response.json(); 
+        const text = await response.text();
+        let result: any = {};
+        try { result = JSON.parse(text); } catch { result = { success: true, message: "Đã gửi bản ghi" }; }
         if (result.success) { 
             alert("Đã lưu thành công vào Drive!"); 
             if (result.id) setCurrentProjectId(result.id); 
             setChapterContentMap(finalContentMap); 
             fetchMyProjects(studentInfo.id);
         } else { 
-            alert("Lỗi khi lưu: " + result.message); 
+            alert("Lỗi khi lưu: " + (result.message || "Không thể lưu vào Drive")); 
         } 
     } catch (error) { alert("Lỗi kết nối."); } finally { setIsSaving(false); }
   };

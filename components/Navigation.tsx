@@ -10,9 +10,10 @@ import {
   User as UserIcon,
   LogOut,
   Shield,
-  Info
+  Info,
+  Bot
 } from 'lucide-react';
-import { NavigationProps } from '../types';
+import { NavigationProps, isAiCheckAdmin } from '../types';
 
 export const Navigation: React.FC<NavigationProps> = ({ 
   activeTab, 
@@ -21,19 +22,33 @@ export const Navigation: React.FC<NavigationProps> = ({
   setMobileMenuOpen,
   user,
   onLogout,
-  onOpenAuth
+  onOpenAuth,
+  onAiAccessDenied
 }) => {
   
-  const navItems = user 
-    ? [
-        { id: 'home', label: 'Trang chủ', icon: <Monitor size={18}/> },
-        { id: 'training', label: 'Đào tạo', icon: <GraduationCap size={18}/> },
-        { id: 'research', label: 'NCKH', icon: <PenTool size={18}/> },
-        { id: 'thesis', label: 'Dự án Học thuật', icon: <FileText size={18}/> },
-        { id: 'check', label: 'Tra cứu', icon: <Database size={18}/> },
-        ...(user.role === 'admin' ? [{ id: 'admin', label: 'Admin', icon: <Shield size={18}/> }] : [])
-      ] 
-    : [];
+  const navItems = [
+    ...(user ? [
+      { id: 'home', label: 'Trang chủ', icon: <Monitor size={18}/> },
+      { id: 'training', label: 'Đào tạo', icon: <GraduationCap size={18}/> },
+      { id: 'research', label: 'NCKH', icon: <PenTool size={18}/> },
+      { id: 'thesis', label: 'Dự án Học thuật', icon: <FileText size={18}/> },
+      { id: 'ai-check', label: 'Kiểm tra AI', icon: <Bot size={18}/> },
+      { id: 'check', label: 'Tra cứu', icon: <Database size={18}/> },
+      ...(user.role === 'admin' ? [{ id: 'admin', label: 'Admin', icon: <Shield size={18}/> }] : [])
+    ] : [])
+  ];
+
+  const handleNavClick = (tabId: string) => {
+    if (tabId === 'ai-check') {
+      if (!isAiCheckAdmin(user)) {
+        onAiAccessDenied?.();
+        setMobileMenuOpen(false);
+        return;
+      }
+    }
+    setActiveTab(tabId);
+    setMobileMenuOpen(false);
+  };
 
   return (
     <nav className="bg-blue-50 shadow-sm sticky top-0 z-40 border-b border-blue-100">
@@ -50,12 +65,12 @@ export const Navigation: React.FC<NavigationProps> = ({
               </div>
             </div>
 
-            {/* Desktop Menu - User items only */}
+            {/* Desktop Menu */}
             <div className="hidden md:flex space-x-1 items-center">
-              {user && navItems.map(item => (
+              {navItems.map(item => (
                 <button
                   key={item.id}
-                  onClick={() => setActiveTab(item.id)}
+                  onClick={() => handleNavClick(item.id)}
                   className={`flex items-center px-4 py-2 rounded-full text-sm font-bold transition-all ${
                     activeTab === item.id ? 'bg-blue-100 text-blue-800' : 'text-gray-600 hover:bg-white/50'
                   }`}
@@ -113,8 +128,8 @@ export const Navigation: React.FC<NavigationProps> = ({
                  <Info size={18} /> <span className="ml-3">Giới thiệu</span>
              </button>
 
-            {user && navItems.map(item => (
-               <button key={item.id} onClick={()=>{setActiveTab(item.id); setMobileMenuOpen(false)}} className="w-full text-left px-4 py-3 rounded-lg hover:bg-white/50 flex items-center font-medium text-gray-700">
+            {navItems.map(item => (
+               <button key={item.id} onClick={()=>handleNavClick(item.id)} className="w-full text-left px-4 py-3 rounded-lg hover:bg-white/50 flex items-center font-medium text-gray-700">
                  {item.icon} <span className="ml-3">{item.label}</span>
                </button>
             ))}

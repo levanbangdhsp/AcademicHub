@@ -1,5 +1,6 @@
 {
   "name": "ScholarAI - Research Companion",
-  "description": "",
-  "requestFramePermissions": []
+  "description": "Nền tảng hỗ trợ nghiên cứu khoa học, xây dựng luận văn, kiểm tra đề tài và phát hiện nội dung AI.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

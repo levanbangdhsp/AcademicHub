@@ -1,15 +1,19 @@
 import React from 'react';
-import { TabProps, User } from '../types';
-import { Cpu, Monitor, FileText, Database, PenTool, GraduationCap, Clock, ArrowRight, Calendar, Bell, ExternalLink } from 'lucide-react';
+import { TabProps, User, isAiCheckAdmin } from '../types';
+import { Cpu, Monitor, FileText, Database, PenTool, GraduationCap, Clock, ArrowRight, Calendar, Bell, ExternalLink, ShieldCheck, Lock } from 'lucide-react';
 
 interface HomeViewProps extends Pick<TabProps, 'setActiveTab'> {
     user: User;
     thesisCount: number;
     paperCount: number;
     cachedStudentId: string;
+    onAiAccessDenied?: () => void;
 }
 
-export const HomeView: React.FC<HomeViewProps> = ({ setActiveTab, user, thesisCount, paperCount, cachedStudentId }) => (
+export const HomeView: React.FC<HomeViewProps> = ({ setActiveTab, user, thesisCount, paperCount, cachedStudentId, onAiAccessDenied }) => {
+  const isAdmin = isAiCheckAdmin(user);
+
+  return (
   <div className="space-y-8 animate-fade-in max-w-7xl mx-auto">
     {/* Welcome Banner */}
     <div className="bg-gradient-to-r from-blue-800 to-indigo-900 text-white rounded-3xl p-8 shadow-xl relative overflow-hidden">
@@ -71,7 +75,39 @@ export const HomeView: React.FC<HomeViewProps> = ({ setActiveTab, user, thesisCo
         <h2 className="text-xl font-bold mb-6 flex items-center text-gray-800">
           <Cpu className="mr-2 text-blue-600" /> Truy cập nhanh Công cụ
         </h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {/* AI Detector */}
+            <div 
+                onClick={() => {
+                  if (isAdmin) {
+                    setActiveTab('ai-check');
+                  } else {
+                    onAiAccessDenied?.();
+                  }
+                }}
+                className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm hover:shadow-lg hover:border-red-300 transition-all cursor-pointer group relative overflow-hidden"
+            >
+                {!isAdmin && (
+                  <span className="absolute top-4 right-4 bg-amber-50 text-amber-800 text-xs px-2.5 py-1 rounded-full font-bold border border-amber-200 flex items-center gap-1 shadow-sm">
+                    <Lock size={12} className="text-amber-600" /> Admin
+                  </span>
+                )}
+                <div className="bg-red-50 w-12 h-12 rounded-xl flex items-center justify-center mb-4 group-hover:bg-red-600 transition-colors">
+                    <ShieldCheck className="text-red-600 group-hover:text-white transition-colors" size={24}/>
+                </div>
+                <h3 className="font-bold text-gray-900 text-lg mb-2 flex items-center gap-2">
+                  Kiểm tra AI & Đạo văn
+                </h3>
+                <p className="text-gray-500 text-sm">
+                    Tải file (.doc, .docx, .pdf), tô màu đoạn do AI viết, đối chiếu tài liệu gốc và viết lại tự nhiên.
+                </p>
+                {!isAdmin && (
+                  <div className="mt-3 text-xs text-amber-700 font-semibold flex items-center gap-1">
+                    <Lock size={12} /> Yêu cầu quyền Admin (banglv@hcmue.edu.vn)
+                  </div>
+                )}
+            </div>
+
             {/* Research Paper */}
             <div 
                 onClick={() => setActiveTab('research')}
@@ -164,4 +200,5 @@ export const HomeView: React.FC<HomeViewProps> = ({ setActiveTab, user, thesisCo
         </div>
     </div>
   </div>
-);
+  );
+};

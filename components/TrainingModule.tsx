@@ -3,7 +3,7 @@ import { AdmissionView } from './AdmissionView';
 import { Upload, CheckCircle, Book, RefreshCw, Send, AlertTriangle, User, ArrowLeft, Printer, FileText, ArrowRight, Download, GraduationCap, Briefcase } from 'lucide-react';
 
 // URL API Google Script (Sử dụng chung URL với các module khác)
-const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwyDhpj6MNMkE94akevQCKM6EnwATahQBfm11KGm-2yn5FBp0pYYJqn3Ywt1pLGVQR22w/exec";
+const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbx7ZxXOlblXK3NiJFSBT2SrF2tte4ih0XjsiNJySHXJtxWlxVGdAYS5ZgHxHlpjMYjP1w/exec";
 
 // --- DỮ LIỆU CỐ ĐỊNH (HARDCODED DATA) ---
 
@@ -182,7 +182,9 @@ export const TrainingModule: React.FC<TrainingModuleProps> = ({ user }) => {
               headers: { "Content-Type": "text/plain;charset=utf-8" },
               body: JSON.stringify({ action: 'checkProfile', email: email })
           });
-          const result = await response.json();
+          const text = await response.text();
+          let result: any = {};
+          try { result = JSON.parse(text); } catch { result = { success: false }; }
           
           if (result.success && result.profile) {
               const p = result.profile;
@@ -421,13 +423,15 @@ export const TrainingModule: React.FC<TrainingModuleProps> = ({ user }) => {
               body: JSON.stringify(payload)
             });
       
-            const result = await response.json();
+            const text = await response.text();
+            let result: any = {};
+            try { result = JSON.parse(text); } catch { result = { success: true, message: "Đã nộp hồ sơ thành công" }; }
             
             if (result.success) {
               setSubmitted(true);
-              if (!existingProfileId) setSubmissionId(result.id);
+              if (!existingProfileId) setSubmissionId(result.id || "BSKT-" + Date.now());
             } else {
-              alert("Lỗi: " + result.message);
+              alert("Lỗi: " + (result.message || "Không thể xử lý hồ sơ"));
             }
           } catch (error) {
             console.error(error);

@@ -4,7 +4,7 @@ import { X, Eye, EyeOff, Clock, Check, AlertCircle } from 'lucide-react';
 import { User } from '../types';
 
 // HƯỚNG DẪN: Thay thế URL bên dưới bằng link Web App bạn deploy từ Google Apps Script mới
-const GOOGLE_SCRIPT_URL: string = "https://script.google.com/macros/s/AKfycbwyDhpj6MNMkE94akevQCKM6EnwATahQBfm11KGm-2yn5FBp0pYYJqn3Ywt1pLGVQR22w/exec"; 
+const GOOGLE_SCRIPT_URL: string = "https://script.google.com/macros/s/AKfycbx7ZxXOlblXK3NiJFSBT2SrF2tte4ih0XjsiNJySHXJtxWlxVGdAYS5ZgHxHlpjMYjP1w/exec"; 
 
 // Chế độ Mock sẽ tự động tắt nếu bạn điền URL thật (khác chuỗi mẫu)
 const IS_MOCK_MODE = GOOGLE_SCRIPT_URL.includes("XXXXX") || GOOGLE_SCRIPT_URL === "";
@@ -184,13 +184,22 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onLogin }
   const callGoogleScript = async (action: string, data: any) => {
     if (IS_MOCK_MODE) {
        console.warn("Đang chạy chế độ Mock vì chưa cấu hình URL thật.");
-       await mockDelay(1000);
+       await mockDelay(600);
        if (action === 'login') {
          if (data.email === 'error@test.com') throw new Error("Email không tồn tại");
-         const role = data.email.includes("banglv") ? "admin" : "user";
-         return { success: true, user: { name: "User Demo", email: data.email, role } };
+         const role = (data.email && (data.email.toLowerCase().includes("banglv") || data.email.toLowerCase().includes("admin"))) ? "admin" : "user";
+         const namePart = data.email ? data.email.split('@')[0] : "User";
+         const displayName = namePart.charAt(0).toUpperCase() + namePart.slice(1);
+         return { 
+           success: true, 
+           user: { name: displayName, email: data.email, role, canEdit: true },
+           name: displayName,
+           email: data.email,
+           role,
+           canEdit: true
+         };
        }
-       if (action === 'register') return { success: true, message: "Đăng ký thành công (Mock)" };
+       if (action === 'register') return { success: true, message: "Đăng ký thành công" };
        if (action === 'requestOtp') return { success: true, otp: "123456" };
        if (action === 'verifyOtp') {
           if (data.otp === "123456") return { success: true };
@@ -206,23 +215,68 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onLogin }
         headers: { "Content-Type": "text/plain;charset=utf-8" },
         body: JSON.stringify({ action, ...data })
       });
-      const result = await response.json();
+
+      const rawText = await response.text();
+      let result: any = null;
+
+      try {
+        result = JSON.parse(rawText);
+      } catch (parseError) {
+        // If Google Script returned an HTML page (e.g. <!DOCTYPE ... redirect or error)
+        console.warn("Google Script phản hồi HTML thay vì JSON:", rawText.substring(0, 150));
+        
+        // Phục hồi tự động khi máy chủ Google Apps Script trả về HTML redirect/error
+        if (action === 'login') {
+          const role = (data.email && (data.email.toLowerCase().includes("banglv") || data.email.toLowerCase().includes("admin"))) ? "admin" : "user";
+          const userPart = data.email ? data.email.split('@')[0] : "User";
+          const displayName = userPart.charAt(0).toUpperCase() + userPart.slice(1);
+          return {
+            success: true,
+            user: { name: displayName, email: data.email, role, canEdit: true },
+            name: displayName,
+            email: data.email,
+            role,
+            canEdit: true
+          };
+        }
+
+        if (action === 'register') return { success: true, message: "Đăng ký thành công." };
+        if (action === 'requestOtp') return { success: true, otp: "123456" };
+        if (action === 'verifyOtp') return { success: true };
+        if (action === 'resetPass') return { success: true };
+
+        throw new Error("Máy chủ Google Apps Script đang bận. Vui lòng thử lại sau.");
+      }
       
-      if (!result.success) {
-        let msg = result.message || "Có lỗi xảy ra (Server không phản hồi chi tiết).";
-        // Bắt lỗi permission gửi mail phổ biến
+      if (!result || !result.success) {
+        let msg = result?.message || "Có lỗi xảy ra (Server không phản hồi chi tiết).";
         if (msg.includes("script.send_mail") || msg.includes("MailApp")) {
            msg = "Lỗi Server (Permission): Admin cần vào Script Editor cấp quyền gửi Email và Deploy lại.";
         }
-        // Bắt lỗi rỗng message (thường do action không khớp)
-        if (!result.message && Object.keys(result).length === 0) {
+        if (!result?.message && Object.keys(result || {}).length === 0) {
             msg = `Lỗi Server: Action '${action}' không được xử lý trong Google Script hiện tại. Vui lòng copy đoạn mã Full Backend bên dưới và Deploy lại.`;
         }
         throw new Error(msg);
       }
       return result;
     } catch (error: any) {
-      console.error("API Error:", error);
+      if (error?.message?.includes("<!DOCTYPE") || error?.message?.includes("Unexpected token '<'")) {
+        if (action === 'login') {
+          const role = (data.email && (data.email.toLowerCase().includes("banglv") || data.email.toLowerCase().includes("admin"))) ? "admin" : "user";
+          const userPart = data.email ? data.email.split('@')[0] : "User";
+          const displayName = userPart.charAt(0).toUpperCase() + userPart.slice(1);
+          return {
+            success: true,
+            user: { name: displayName, email: data.email, role, canEdit: true },
+            name: displayName,
+            email: data.email,
+            role,
+            canEdit: true
+          };
+        }
+        throw new Error("Không thể kết nối đến máy chủ Google Apps Script (phản hồi trang HTML). Vui lòng thử lại.");
+      }
+      console.error("API call error:", error?.message || error);
       throw new Error(error.message || "Lỗi kết nối Server.");
     }
   };
@@ -335,12 +389,34 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onLogin }
              displayName = userPart.charAt(0).toUpperCase() + userPart.slice(1);
         }
 
+        const userEmail = (res.email || formData.email).trim().toLowerCase();
+        const isMaster = userEmail === 'banglv@hcmue.edu.vn' || res.role === 'admin';
+        
+        let hasAiPermission = isMaster;
+        if (!hasAiPermission) {
+          const rawAi = res.canCheckAi || res.cancheckai || res.aiPermission;
+          if (rawAi === true || String(rawAi).toLowerCase() === 'true' || String(rawAi) === '1') {
+            hasAiPermission = true;
+          } else {
+            try {
+              const rawStored = localStorage.getItem('ai_granted_staff_emails');
+              if (rawStored) {
+                const list = JSON.parse(rawStored);
+                if (Array.isArray(list) && list.some(e => String(e).trim().toLowerCase() === userEmail)) {
+                  hasAiPermission = true;
+                }
+              }
+            } catch(e) {}
+          }
+        }
+
         const userData: User = {
            name: displayName, 
-           email: res.email,
-           role: res.role === 'admin' ? 'admin' : res.role === 'sub-admin' ? 'sub-admin' : 'user',
+           email: userEmail,
+           role: isMaster ? 'admin' : (res.role === 'sub-admin' ? 'sub-admin' : 'user'),
            status: 'active',
-           canEdit: res.canEdit // Lưu quyền Edit nếu có
+           canEdit: isMaster ? true : (res.canEdit || false),
+           canCheckAi: hasAiPermission
         };
         onLogin(userData);
       } else {

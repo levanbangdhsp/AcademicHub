@@ -10,6 +10,7 @@ export interface NavigationProps extends TabProps {
   user: User | null;
   onLogout: () => void;
   onOpenAuth: () => void;
+  onAiAccessDenied?: () => void;
 }
 
 export interface Software {
@@ -58,6 +59,7 @@ export interface User {
   role: Role;
   status?: string;
   canEdit?: boolean;
+  canCheckAi?: boolean;
 }
 
 export interface FileRecord {
@@ -67,3 +69,28 @@ export interface FileRecord {
   fileName: string;
   date: string;
 }
+
+export const ADMIN_EMAIL = 'banglv@hcmue.edu.vn';
+
+export const isAiCheckAdmin = (user: User | null | undefined): boolean => {
+  if (!user) return false;
+  const email = (user.email || '').trim().toLowerCase();
+  if (email === ADMIN_EMAIL.toLowerCase() || user.role === 'admin') return true;
+  if (user.canCheckAi === true) return true;
+
+  // Real-time check from local granted list
+  try {
+    const raw = localStorage.getItem('ai_granted_staff_emails');
+    if (raw) {
+      const list = JSON.parse(raw);
+      if (Array.isArray(list) && list.some((e: string) => String(e).trim().toLowerCase() === email)) {
+        return true;
+      }
+    }
+  } catch (e) {
+    // Ignore error
+  }
+
+  return false;
+};
+

@@ -3,11 +3,17 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { TopicAnalysis } from '../types';
 
 // Ensure API Key is available
-const apiKey = process.env.API_KEY || '';
-const ai = new GoogleGenAI({ apiKey });
+const apiKey = 
+  process.env.GEMINI_API_KEY || 
+  process.env.API_KEY || 
+  process.env.VITE_GEMINI_API_KEY || 
+  (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_GEMINI_API_KEY) ||
+  (typeof window !== 'undefined' && (window as any).__GEMINI_API_KEY__) || 
+  '';
+const ai = new GoogleGenAI(apiKey ? { apiKey } : {});
 
 // Helper: Retry mechanism for API calls (Handle 429 Rate Limits)
-const generateWithRetry = async (options: any, retries = 3) => {
+const generateWithRetry = async (options: any, retries = 2) => {
   for (let i = 0; i < retries; i++) {
     try {
       return await ai.models.generateContent(options);
@@ -16,8 +22,8 @@ const generateWithRetry = async (options: any, retries = 3) => {
       
       // If rate limited and not the last retry
       if (isRateLimit && i < retries - 1) {
-        console.warn(`Quota exceeded (429). Retrying attempt ${i + 1}/${retries} in ${(i + 1) * 2}s...`);
-        await new Promise(res => setTimeout(res, (i + 1) * 2000));
+        console.warn(`Quota exceeded (429). Retrying attempt ${i + 1}/${retries} in ${(i + 1) * 1.5}s...`);
+        await new Promise(res => setTimeout(res, (i + 1) * 1500));
         continue;
       }
       throw error;
@@ -51,7 +57,7 @@ const isHardScience = (major: string) => {
 export const checkTopicViability = async (topic: string): Promise<TopicAnalysis> => {
   if (!apiKey) throw new Error("API Key missing");
 
-  const model = "gemini-2.5-flash";
+  const model = "gemini-3.8-flash";
   const prompt = `Bạn là một Hội đồng khoa học xét duyệt đề tài Thạc sĩ. Hãy phân tích đề tài: "${topic}".
   
   Yêu cầu trả về JSON với các trường sau (Nội dung phải bằng Tiếng Việt 100%):
@@ -93,7 +99,7 @@ export const checkTopicViability = async (topic: string): Promise<TopicAnalysis>
 // 1.5 Analyze Research Trends (Phân tích Xu hướng Nghiên cứu)
 export const analyzeTopicTrends = async (topic: string): Promise<any> => {
   if (!apiKey) throw new Error("API Key missing");
-  const model = "gemini-2.5-flash"; // Hoặc gemini-2.0-flash-exp nếu có
+  const model = "gemini-3.8-flash"; // Hoặc gemini-2.0-flash-exp nếu có
 
   const prompt = `Bạn là một chuyên gia phân tích xu hướng nghiên cứu khoa học.
   Đề tài: "${topic}"
@@ -147,7 +153,7 @@ export const analyzeTopicTrends = async (topic: string): Promise<any> => {
 // 2. Suggest Topics
 export const suggestResearchTopics = async (major: string, keywords?: string): Promise<string[]> => {
   if (!apiKey) throw new Error("API Key missing");
-  const model = "gemini-2.5-flash";
+  const model = "gemini-3.8-flash";
 
   const prompt = `Đóng vai là một Giáo sư hướng dẫn nghiên cứu khoa học chuyên ngành ${major}. 
   Hãy đề xuất 5 tên đề tài luận văn thạc sĩ mới mẻ, có tính cấp thiết và khả thi.
@@ -229,7 +235,7 @@ export const generateDetailedOutline = async (
   language: string = "Tiếng Việt"
 ): Promise<DetailedOutline> => {
   if (!apiKey) throw new Error("API Key missing");
-  const model = "gemini-2.5-flash"; 
+  const model = "gemini-3.8-flash"; 
 
   const isHard = isHardScience(major);
   let structurePrompt = "";
@@ -333,7 +339,7 @@ export const generateDetailedOutline = async (
 // 3.5 Refine Outline (Chỉnh sửa Đề cương)
 export const refineDetailedOutline = async (currentOutline: DetailedOutline, userFeedback: string): Promise<DetailedOutline> => {
   if (!apiKey) throw new Error("API Key missing");
-  const model = "gemini-2.5-flash";
+  const model = "gemini-3.8-flash";
 
   // Chuyển outline hiện tại thành chuỗi JSON để gửi lại cho Gemini
   const outlineStr = JSON.stringify(currentOutline);
@@ -371,7 +377,7 @@ export const refineDetailedOutline = async (currentOutline: DetailedOutline, use
 // NEW: 3.5.1 Parse Outline From Text (Import Feature)
 export const parseOutlineFromText = async (rawText: string): Promise<DetailedOutline> => {
   if (!apiKey) throw new Error("API Key missing");
-  const model = "gemini-2.5-flash";
+  const model = "gemini-3.8-flash";
 
   const prompt = `Dưới đây là nội dung văn bản của một đề cương nghiên cứu/luận văn (có thể do học viên copy từ file Word):
   
@@ -449,7 +455,7 @@ export const findResearchEvidence = async (topics: string[]): Promise<ResearchEv
 
   try {
     const response = await generateWithRetry({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-3.8-flash',
       contents: prompt,
       config: {
         tools: [{ googleSearch: {} }],
@@ -484,7 +490,7 @@ export interface StyleGuide {
 
 export const analyzePaperStyle = async (sampleText: string): Promise<StyleGuide> => {
     if (!apiKey) throw new Error("API Key missing");
-    const model = "gemini-2.5-flash";
+    const model = "gemini-3.8-flash";
 
     const prompt = `Hãy đóng vai một biên tập viên tạp chí khoa học. Dưới đây là một đoạn văn bản mẫu từ một bài báo đã xuất bản:
 
@@ -532,7 +538,7 @@ export const smartWriteSection = async (
   outlineContext?: any // <--- THÊM MỚI: Tham số nhận dữ liệu đề cương
   ): Promise<string> => {
   if (!apiKey) throw new Error("API Key missing");
-  const model = "gemini-2.5-flash";
+  const model = "gemini-3.8-flash";
 
   // DETECT CITATION STYLE
   const defaultCitationStyle = getCitationStyle(major);
@@ -631,7 +637,7 @@ export const reviewThesisLogic = async (
   surveyMap?: Record<string, string> // NEW PARAM
 ): Promise<{issues: string[], overall: string}> => {
   if (!apiKey) throw new Error("API Key missing");
-  const model = "gemini-2.5-flash";
+  const model = "gemini-3.8-flash";
 
   // Chuẩn bị dữ liệu rút gọn để gửi AI (tránh quá tải token)
   // Chỉ lấy 500 ký tự đầu của mỗi mục
@@ -697,7 +703,7 @@ export const fixLogicIssue = async (
   topic: string
 ): Promise<string> => {
   if (!apiKey) throw new Error("API Key missing");
-  const model = "gemini-2.5-flash";
+  const model = "gemini-3.8-flash";
 
   const prompt = `Bạn là một biên tập viên học thuật xuất sắc.
   Đề tài: "${topic}"
@@ -741,7 +747,7 @@ export const generateSlideContent = async (
   slideCount: number = 10 
 ): Promise<SlideItem[]> => {
   if (!apiKey) throw new Error("API Key missing");
-  const model = "gemini-2.5-flash";
+  const model = "gemini-3.8-flash";
 
   // Summarize content for context - INCREASED LIMIT
   // Increased from 300 to 5000 to ensure AI has enough context
@@ -816,7 +822,7 @@ export const generateSlideContent = async (
 // 3.11 PLAGIARISM CHECK (Sơ bộ) - UPDATED WITH RETRY & SAFE RETURN
 export const checkPlagiarism = async (textToCheck: string): Promise<{score: number, matches: string[]}> => {
   if (!apiKey) throw new Error("API Key missing");
-  const model = "gemini-2.5-flash";
+  const model = "gemini-3.8-flash";
 
   const prompt = `Hãy kiểm tra xem đoạn văn bản sau có xuất hiện trên internet không (Check đạo văn sơ bộ).
   Văn bản: "${textToCheck.substring(0, 2000)}" (Cắt ngắn nếu quá dài)
@@ -837,6 +843,7 @@ export const checkPlagiarism = async (textToCheck: string): Promise<{score: numb
       contents: prompt,
       config: { 
         tools: [{ googleSearch: {} }],
+        temperature: 0.0,
         maxOutputTokens: 4000 
       }
     });
@@ -876,7 +883,7 @@ export const checkPlagiarism = async (textToCheck: string): Promise<{score: numb
 // Thêm tham số language vào hàm
 export const paraphraseContent = async (text: string, language: string = "Tiếng Việt"): Promise<string> => {
   if (!apiKey) throw new Error("API Key missing");
-  const model = "gemini-2.5-flash";
+  const model = "gemini-3.8-flash";
 
   // Prompt Phương án B: Elaborate/Expand (Mở rộng ý)
   const prompt = `Bạn là một biên tập viên học thuật chuyên nghiệp. Hãy viết lại (paraphrase) đoạn văn bản sau bằng ngôn ngữ: ${language}.
@@ -907,7 +914,7 @@ export const paraphraseContent = async (text: string, language: string = "Tiến
 // 4. Research Assistant
 export const researchAssistant = async (query: string) => {
   if (!apiKey) throw new Error("API Key missing");
-  const model = "gemini-2.5-flash";
+  const model = "gemini-3.8-flash";
   try {
     const response = await ai.models.generateContent({
       model,
@@ -927,26 +934,32 @@ export const researchAssistant = async (query: string) => {
 // 5. Admission Advice
 export const getAdmissionAdvice = async (profile: string, question: string) => {
   if (!apiKey) throw new Error("API Key missing");
-  const model = "gemini-2.5-flash";
-  // --- BẮT ĐẦU CODE MỚI ---
+  const model = "gemini-3.8-flash";
   const prompt = `
-    Bạn là Trợ lý Nghiên cứu & Học thuật (Academic Research Assistant) của ĐH Sư phạm TP.HCM.
+    Bạn là Trợ lý Nghiên cứu & Học thuật (Academic Research Assistant) của ĐH Sư phạm TP.HCM (HCMUE).
     Người dùng đang hỏi: "${question}"
 
     NHIỆM VỤ:
-    1. Kiểm tra xem câu hỏi có phải là thủ tục hành chính (học phí, lịch thi, tuyển sinh...) không.
-       - Nếu CÓ: Trả lời hướng dẫn người dùng qua Tab [Đào tạo] hoặc website trường. Không cần gợi ý tiếp theo.
-       - Nếu KHÔNG (Hỏi về chuyên môn NCKH, Luận văn...): Trả lời theo vai chuyên gia.
+    1. Kiểm tra xem câu hỏi có phải là thủ tục hành chính thuần túy (học phí, lịch thi, tuyển sinh...) không.
+       - Nếu CÓ: Hướng dẫn người dùng xem thông tin tại Tab [Đào tạo] hoặc cổng thông tin tuyển sinh [tuyensinh.hcmue.edu.vn](https://tuyensinh.hcmue.edu.vn).
+       - Nếu KHÔNG (Hỏi về quy chế đào tạo, định hướng nghiên cứu, luận văn thạc sĩ, chuyên môn NCKH...): Trả lời chính xác, chuẩn xác theo quy chế đào tạo sau đại học.
+
+    2. QUY TẮC BẮT BUỘC VỀ ĐIỂM NHẤN (HIGHLIGHT):
+       - Hãy đặt trong cặp dấu **từ_khóa** cho các cụm từ then chốt, tên chương trình, quy định, điều kiện bắt buộc, số tín chỉ, thời gian (ví dụ: **chương trình định hướng nghiên cứu**, **luận văn thạc sĩ**, **bắt buộc**, **15 tín chỉ**, **tối thiểu 1 năm**).
+       - TUYỆT ĐỐI KHÔNG để khoảng trắng trước các dấu câu: Viết liền dấu hai chấm "**Tên mục**:", dấu phẩy "**từ khóa**,", dấu chấm "**từ khóa**." (KHÔNG ĐƯỢC viết "**Tên mục** :" hay "**từ khóa** ,").
+       - Phân tách các đoạn văn rõ ràng bằng 2 lần xuống dòng.
+       - Khi liệt kê các thông tin quy định cụ thể, hãy dùng gạch đầu dòng "- **Tên mục**: Nội dung...".
+       - Mở đầu bằng lời chào thân thiện (ví dụ: "Chào bạn,").
 
     YÊU CẦU ĐỊNH DẠNG CÂU TRẢ LỜI (BẮT BUỘC JSON):
     Hãy trả về một JSON Object với 2 trường:
-    - "answer": Nội dung trả lời. Ngắn gọn, súc tích (tối đa 150 từ). Sử dụng Markdown để trình bày đẹp.
-    - "suggestions": Một mảng chứa 2 câu hỏi ngắn (string) gợi ý người dùng nên hỏi gì tiếp theo liên quan đến chủ đề này.
+    - "answer": Nội dung câu trả lời (khoảng 100 - 200 từ), sử dụng Markdown với các điểm nhấn **...** và danh sách rõ ràng.
+    - "suggestions": Mảng gồm 2-3 câu hỏi ngắn (string) gợi ý câu hỏi tiếp theo liên quan mật thiết đến chủ đề.
 
     VÍ DỤ OUTPUT MONG MUỐN:
     {
-      "answer": "Để chọn đề tài luận văn tốt, bạn cần...",
-      "suggestions": ["Cách tìm khoảng trống nghiên cứu?", "Cấu trúc đề cương mẫu?"]
+      "answer": "Chào bạn,\\n\\nĐối với học viên theo học **chương trình định hướng nghiên cứu** tại Trường Đại học Sư phạm TP.HCM, việc thực hiện **luận văn thạc sĩ** là yêu cầu **bắt buộc**.\\n\\nDưới đây là một số thông tin quy định cụ thể về luận văn thạc sĩ đối với định hướng này để bạn tham khảo:\\n- **Khối lượng và thời gian**: Học viên phải thực hiện một đề tài luận văn thạc sĩ có khối lượng **15 tín chỉ**, trong thời gian thực hiện theo quy chế.\\n- **Yêu cầu bảo vệ**: Học viên phải hoàn thành tất cả học phần và công bố bài báo khoa học liên quan đến đề tài.",
+      "suggestions": ["Thời gian thực hiện luận văn là bao lâu?", "Quy định về bài báo khoa học để bảo vệ luận văn?"]
     }
   `;
 
@@ -954,30 +967,18 @@ export const getAdmissionAdvice = async (profile: string, question: string) => {
     const response = await ai.models.generateContent({
       model,
       contents: prompt,
-      config: { responseMimeType: "application/json" } // Ép buộc trả về JSON
+      config: { responseMimeType: "application/json" }
     });
 
     const text = response.text || "{}";
-    // Parse JSON từ AI để trả về Object cho giao diện dùng
     return JSON.parse(text); 
   } catch (error) {
     console.error("Chat Error", error);
-    // Trả về object rỗng nếu lỗi để không crash app
     return { 
       answer: "Hệ thống đang bận hoặc gặp lỗi xử lý. Vui lòng thử lại câu hỏi khác.", 
       suggestions: [] 
     };
-  } 
-  try {
-    const response = await ai.models.generateContent({
-      model,
-      contents: prompt,
-    });
-    return response.text;
-  } catch (error) {
-    throw error;
   }
-
 };
 
 // 6. Paper Generation Features (NCKH)
@@ -1005,7 +1006,7 @@ export const generatePaperOutline = async (title: string, abstract: string): Pro
     const prompt = `Tạo dàn ý bài báo IMRaD cho: "${title}". Abstract: "${abstract}". 
     Trả về JSON: introduction, methods, results, discussion, conclusion, references. Các trường khác để trống.`;
     try {
-        const response = await generateWithRetry({ model: 'gemini-2.5-flash', contents: prompt, config: { responseMimeType: "application/json" } });
+        const response = await generateWithRetry({ model: 'gemini-3.8-flash', contents: prompt, config: { responseMimeType: "application/json" } });
         const res = JSON.parse(response.text || "{}");
         return { ...res, title, abstract, keywords_vi: "", title_en: "", abstract_en: "", keywords_en: "" };
     } catch (e) { throw e; }
@@ -1037,7 +1038,7 @@ export const convertThesisToPaper = async (thesisData: DetailedOutline, contentM
 
     try {
         const response = await generateWithRetry({
-            model: 'gemini-2.5-flash',
+            model: 'gemini-3.8-flash',
             contents: prompt,
             config: { 
                 responseMimeType: "application/json",
@@ -1083,7 +1084,7 @@ export const generateFullPaper = async (
 
     // Gọi AI lần 1
     const responseContent = await generateWithRetry({
-        model: 'gemini-2.5-flash',
+        model: 'gemini-3.8-flash',
         contents: promptContent,
         config: { responseMimeType: "application/json", maxOutputTokens: 8192 }
     });
@@ -1118,7 +1119,7 @@ export const generateFullPaper = async (
 
     // Gọi AI lần 2
     const responseTranslate = await generateWithRetry({
-        model: 'gemini-2.5-flash',
+        model: 'gemini-3.8-flash',
         contents: promptTranslate,
         config: { responseMimeType: "application/json" }
     });
@@ -1141,7 +1142,7 @@ export const generateFullPaper = async (
 // NEW: Suggest Short Title
 export const suggestShortPaperTitle = async (currentTitle: string): Promise<string> => {
     if (!apiKey) throw new Error("API Key missing");
-    const model = "gemini-2.5-flash";
+    const model = "gemini-3.8-flash";
 
     const prompt = `Hãy rút gọn tên đề tài sau thành một Tiêu đề Bài báo khoa học ngắn gọn, súc tích, hấp dẫn (theo phong cách báo chí học thuật).
     Tên gốc: "${currentTitle}"
@@ -1166,7 +1167,7 @@ export const generateSurveyTable = async (
   major: string
 ): Promise<string> => {
   if (!apiKey) throw new Error("API Key missing");
-  const model = "gemini-2.5-flash";
+  const model = "gemini-3.8-flash";
 
   const prompt = `Bạn là một chuyên gia phân tích dữ liệu nghiên cứu khoa học chuyên ngành ${major}.
   Đề tài: "${topic}"
@@ -1215,7 +1216,7 @@ export const generateSurveyContent = async (
   language: string = "Tiếng Việt"
 ): Promise<string> => {
   if (!apiKey) throw new Error("API Key missing");
-  const model = "gemini-2.5-flash";
+  const model = "gemini-3.8-flash";
 
   const prompt = `Bạn là một chuyên gia thiết kế công cụ nghiên cứu khoa học chuyên ngành ${major}.
   Đề tài: "${topic}"
@@ -1276,7 +1277,7 @@ export const optimizeSurveyQuestionnaire = async (
   topic: string
 ): Promise<string> => {
   if (!apiKey) throw new Error("API Key missing");
-  const model = "gemini-2.5-flash";
+  const model = "gemini-3.8-flash";
 
   const prompt = `Bạn là chuyên gia về phương pháp nghiên cứu định lượng.
   Đề tài nghiên cứu: "${topic}"
@@ -1314,7 +1315,7 @@ export const analyzeSurveyData = async (
   contextText?: string // <--- THÊM DÒNG NÀY (Có dấu ? để không bắt buộc)
   ): Promise<string> => {
   if (!apiKey) throw new Error("API Key missing");
-  const model = "gemini-2.5-flash";
+  const model = "gemini-3.8-flash";
 
   const prompt = `Bạn là một chuyên gia đầu ngành về phân tích dữ liệu nghiên cứu khoa học.
   Đề tài: "${topic}"
@@ -1350,3 +1351,353 @@ export const analyzeSurveyData = async (
     throw error;
   }
 };
+
+// ==========================================
+// 7. AI DETECTION & ACADEMIC HUMANIZE MODULE
+// ==========================================
+
+export interface AiSegmentAnalysis {
+  id: string;
+  originalText: string;
+  aiScore: number; // 0 - 100
+  status: 'high_ai' | 'medium_ai' | 'human';
+  reasons: string[];
+  likelySource?: string; // Nguồn tài liệu đối chiếu / trường phái lý thuyết
+  citationSuggestion?: string; // Gợi ý trích dẫn APA/IEEE tránh đạo văn
+  humanizedSuggestion?: string;
+  academicRewrite?: string; // Phiên bản chuyên sâu học thuật
+  conciseRewrite?: string;  // Phiên bản súc tích, đanh thép
+}
+
+export interface AiDetectionReport {
+  overallAiScore: number;
+  overallHumanScore: number;
+  wordCount: number;
+  characterCount: number;
+  highAiParagraphCount: number;
+  verdict: string;
+  summary: string;
+  burstinessScore: number; // 0-100 (độ biến thiên nhịp điệu câu)
+  perplexityScore: number; // 0-100 (độ phức hợp từ vựng & cấu trúc)
+  plagiarismRisk: 'Cao' | 'Trung bình' | 'Thấp';
+  detectedSourcesSummary?: string;
+  segments: AiSegmentAnalysis[];
+}
+
+// Heuristic AI detection fallback (uses stylometrics, burstiness and pattern recognition)
+const detectAiHeuristic = (text: string): AiDetectionReport => {
+  const paragraphs = text
+    .split(/\n\s*\n/)
+    .map(p => p.trim())
+    .filter(p => p.length > 20);
+
+  const finalParas = paragraphs.length > 0 ? paragraphs : [text.trim()];
+
+  const aiClichés = [
+    "trong bối cảnh", "đóng vai trò quan trọng", "không thể phủ nhận rằng",
+    "nhìn chung", "tóm lại", "bên cạnh đó", "mặt khác", "một cách toàn diện",
+    "cần chú trọng", "tạo tiền đề vững chắc", "góp phần không nhỏ",
+    "ngày càng sâu rộng", "nâng cao hiệu quả", "làn sóng công nghệ",
+    "giải pháp mang tính đột phá", "hết sức cần thiết", "cần có sự phối hợp",
+    "được xem là một trong những", "mang lại nhiều lợi ích"
+  ];
+
+  const segments: AiSegmentAnalysis[] = finalParas.map((para, idx) => {
+    const lower = para.toLowerCase();
+    const sentences = para.split(/[.!?]+/).map(s => s.trim()).filter(Boolean);
+    const sentenceLengths = sentences.map(s => s.split(/\s+/).length);
+    
+    const avgLen = sentenceLengths.reduce((a, b) => a + b, 0) / Math.max(1, sentenceLengths.length);
+    const variance = sentenceLengths.reduce((acc, len) => acc + Math.pow(len - avgLen, 2), 0) / Math.max(1, sentenceLengths.length);
+    
+    const matchedClichés = aiClichés.filter(c => lower.includes(c));
+    let score = 25;
+
+    if (matchedClichés.length >= 3) score += 55;
+    else if (matchedClichés.length >= 2) score += 40;
+    else if (matchedClichés.length === 1) score += 20;
+
+    if (variance < 20 && sentenceLengths.length >= 2) score += 18;
+    if (para.length > 200 && matchedClichés.length >= 1) score += 8;
+
+    score = Math.min(95, Math.max(10, score));
+    const status = score >= 70 ? 'high_ai' : score >= 40 ? 'medium_ai' : 'human';
+
+    const reasons: string[] = [];
+    if (matchedClichés.length > 0) {
+      reasons.push(`Xuất hiện các cụm từ nối rập khuôn đặc trưng của LLM: "${matchedClichés.slice(0, 3).join('", "')}"`);
+    }
+    if (variance < 25 && sentenceLengths.length >= 2) {
+      reasons.push("Độ dài các câu quá đồng đều (nhịp câu đơn điệu, thiếu tính ngẫu nhiên của con người)");
+    }
+    if (status === 'human') {
+      reasons.push("Văn phong có tính cá nhân hóa, chứa dữ liệu thực chứng hoặc cách hành văn tự nhiên");
+    }
+
+    let humanized = para;
+    matchedClichés.forEach(c => {
+      humanized = humanized.replace(new RegExp(c, 'gi'), '');
+    });
+    humanized = humanized.replace(/\s{2,}/g, ' ').trim();
+
+    return {
+      id: `seg-${idx + 1}`,
+      originalText: para,
+      aiScore: score,
+      status,
+      reasons,
+      likelySource: status === 'high_ai' 
+        ? "Cơ sở tri thức tổng hợp từ mô hình ngôn ngữ lớn (tổng hợp tài liệu giáo trình đại cương / bài viết tổng quan trực tuyến)"
+        : "Tài liệu học thuật chuyên khảo hoặc dữ liệu khảo sát thực nghiệm",
+      citationSuggestion: status === 'high_ai'
+        ? "Nên bổ sung trích dẫn tác giả kinh điển hoặc tài liệu khảo cứu thực tế trong giai đoạn 2020-2025."
+        : "Trích dẫn đầy đủ theo chuẩn APA 7th.",
+      humanizedSuggestion: humanized,
+      academicRewrite: humanized,
+      conciseRewrite: humanized
+    };
+  });
+
+  const highAiCount = segments.filter(s => s.status === 'high_ai').length;
+  const overallAi = segments.length > 0
+    ? Math.round(segments.reduce((acc, s) => acc + s.aiScore, 0) / segments.length)
+    : 0;
+
+  return {
+    overallAiScore: overallAi,
+    overallHumanScore: Math.max(0, 100 - overallAi),
+    wordCount: text.split(/\s+/).filter(Boolean).length,
+    characterCount: text.length,
+    highAiParagraphCount: highAiCount,
+    verdict: overallAi >= 65 ? "Phát hiện tỷ lệ AI cao (Cần chỉnh sửa)" : overallAi >= 35 ? "Văn bản kết hợp AI và Tự viết" : "Văn bản có tính độc bản cao",
+    summary: "Đã hoàn thành phân tích nhịp điệu câu, độ phong phú từ vựng và các liên từ máy móc.",
+    burstinessScore: Math.max(20, Math.min(90, Math.round(100 - overallAi * 0.6))),
+    perplexityScore: Math.max(25, Math.min(95, Math.round(100 - overallAi * 0.5))),
+    plagiarismRisk: overallAi >= 60 ? 'Cao' : overallAi >= 30 ? 'Trung bình' : 'Thấp',
+    detectedSourcesSummary: "Phát hiện sự tương đồng với các tài liệu lý thuyết nền tảng và văn phong tổng quan trên Internet.",
+    segments
+  };
+};
+
+export const detectAiInDocument = async (
+  documentText: string
+): Promise<AiDetectionReport> => {
+  const trimmedText = documentText.trim();
+  const wordCount = trimmedText ? trimmedText.split(/\s+/).filter(Boolean).length : 0;
+  const characterCount = trimmedText.length;
+
+  if (!trimmedText) {
+    return {
+      overallAiScore: 0,
+      overallHumanScore: 100,
+      wordCount: 0,
+      characterCount: 0,
+      highAiParagraphCount: 0,
+      verdict: "Chưa có nội dung",
+      summary: "Vui lòng nhập hoặc tải file lên để kiểm tra.",
+      burstinessScore: 100,
+      perplexityScore: 100,
+      plagiarismRisk: 'Thấp',
+      segments: []
+    };
+  }
+
+  // Fallback immediately if apiKey is completely absent
+  if (!apiKey) {
+    return detectAiHeuristic(trimmedText);
+  }
+
+  const model = "gemini-3.8-flash";
+
+  // Support full long documents (up to 250,000 characters ~ 80-100 A4 pages)
+  const textToAnalyze = trimmedText.length > 250000 
+    ? trimmedText.substring(0, 250000)
+    : trimmedText;
+
+  const prompt = `Bạn là hệ thống kiểm định AI và đạo văn học thuật chuyên sâu (tương tự Turnitin AI Detection, iThenticate, GPTZero, CopyLeaks).
+Nhiệm vụ: Hãy phân tích văn bản nghiên cứu dưới đây để phát hiện chính xác:
+1. Những đoạn văn nào có dấu hiệu do mô hình ngôn ngữ lớn (ChatGPT, Claude, Gemini...) tạo ra hoặc mang tính tổng quan chung chung.
+2. Dấu hiệu nhận diện (độ đồng nhất câu, từ nối sáo rỗng quen thuộc của AI: "nhìn chung", "đóng vai trò quan trọng", "không thể phủ nhận rằng", "bên cạnh đó", "trong bối cảnh hiện nay", cấu trúc đối xứng máy móc...).
+3. Chỉ ra NGUỒN TÀI LIỆU GỐC / TRƯỜNG PHÁI LÝ THUYẾT / GIÁO TRÌNH NỀN TẢNG mà đoạn văn đó có khả năng bắt nguồn từ (Likely Source / Reference Background), cùng gợi ý trích dẫn (APA/IEEE) để tránh bị coi là đạo văn ý tưởng.
+4. Đưa ra gợi ý viết lại (Humanized Suggestion) cho từng đoạn bị gắn cờ AI để chuyển hóa thành văn phong học thuật tự nhiên của con người, giàu tính phản biện, biến thiên cấu trúc câu để vượt qua các công cụ quét AI.
+
+VĂN BẢN CẦN KIỂM TRA:
+"""
+${textToAnalyze}
+"""
+
+HÃY PHÂN TÁCH VĂN BẢN THÀNH CÁC ĐOẠN (PARAGRAPHS) NGUYÊN BẢN VÀ ĐÁNH GIÁ TỪNG ĐOẠN.
+YÊU CẦU TRẢ VỀ ĐÚNG ĐỊNH DẠNG JSON với cấu trúc sau:
+{
+  "overallAiScore": (số nguyên từ 0 đến 100, ước tính tổng thể % nội dung do AI sinh ra),
+  "overallHumanScore": (số nguyên từ 0 đến 100, 100 - overallAiScore),
+  "burstinessScore": (số nguyên 0-100: độ ngẫu nhiên & biến thiên độ dài câu, AI thường thấp <45, người thường cao >70),
+  "perplexityScore": (số nguyên 0-100: độ phức tạp và độc đáo của từ vựng),
+  "plagiarismRisk": ("Cao" | "Trung bình" | "Thấp"),
+  "verdict": (kết luận ngắn gọn, ví dụ: "Phát hiện tỷ lệ AI cao (Cần chỉnh sửa)" | "Văn bản kết hợp AI và Tự viết" | "Văn bản có tính độc bản cao"),
+  "summary": (đánh giá tổng quan 2-3 câu về đặc điểm văn phong của tài liệu),
+  "detectedSourcesSummary": (tổng quan 1-2 câu về các nhóm nguồn tài liệu học thuật hoặc trang thông tin mà văn bản có nguy cơ trùng lặp ý tưởng),
+  "segments": [
+    {
+      "id": "seg-1",
+      "originalText": "Nguyên văn đoạn văn trong văn bản gốc (giữ nguyên không sửa để đối chiếu)",
+      "aiScore": (số nguyên 0-100),
+      "status": ("high_ai" nếu aiScore >= 70, "medium_ai" nếu 40 <= aiScore < 70, "human" nếu aiScore < 40),
+      "reasons": [
+        "Lý do 1 (ví dụ: Cấu trúc câu quá đều đặn, nhịp điệu đơn điệu đặc trưng của GPT)",
+        "Lý do 2 (ví dụ: Sử dụng từ ngữ mang tính khái quát chung chung, thiếu dẫn chứng cụ thể)"
+      ],
+      "likelySource": "Chỉ ra nguồn gốc khả dĩ (ví dụ: Giáo trình Quản trị học đại cương / Lý thuyết hành vi tổ chức của Robbins / Báo cáo Chuyển đổi số của Bộ GD&ĐT...)",
+      "citationSuggestion": "Gợi ý trích dẫn để tránh đạo văn ý tưởng (ví dụ: Cần bổ sung trích dẫn: (Robbins & Judge, 2019) hoặc tham khảo Quyết định 131/QĐ-BGDĐT)",
+      "humanizedSuggestion": "Đoạn văn viết lại theo phong cách con người tự nhiên, sắc sảo, tự nhiên, đa dạng câu để qua mặt các phần mềm kiểm tra AI"
+    }
+  ]
+}
+`;
+
+  try {
+    const response = await generateWithRetry({
+      model,
+      contents: prompt,
+      config: {
+        responseMimeType: "application/json",
+        temperature: 0.0
+      }
+    });
+
+    let rawText = response.text || "{}";
+    const match = rawText.match(/\{[\s\S]*\}/);
+    if (match) {
+      rawText = match[0];
+    }
+    const parsed = JSON.parse(rawText);
+
+    const segments: AiSegmentAnalysis[] = Array.isArray(parsed.segments)
+      ? parsed.segments.map((seg: any, idx: number) => ({
+          id: seg.id || `seg-${idx + 1}`,
+          originalText: seg.originalText || "",
+          aiScore: typeof seg.aiScore === 'number' ? Math.min(100, Math.max(0, seg.aiScore)) : 0,
+          status: seg.status || (seg.aiScore >= 70 ? 'high_ai' : seg.aiScore >= 40 ? 'medium_ai' : 'human'),
+          reasons: Array.isArray(seg.reasons) ? seg.reasons : [],
+          likelySource: seg.likelySource || "Tài liệu lý thuyết tổng quan hoặc cơ sở tri thức LLM",
+          citationSuggestion: seg.citationSuggestion || "Nên bổ sung tài liệu tham khảo chính thống để tăng tính học thuật.",
+          humanizedSuggestion: seg.humanizedSuggestion || ""
+        }))
+      : [];
+
+    const highAiCount = segments.filter(s => s.status === 'high_ai').length;
+
+    return {
+      overallAiScore: typeof parsed.overallAiScore === 'number' ? parsed.overallAiScore : Math.round((highAiCount / Math.max(1, segments.length)) * 100),
+      overallHumanScore: typeof parsed.overallHumanScore === 'number' ? parsed.overallHumanScore : Math.max(0, 100 - (parsed.overallAiScore || 0)),
+      wordCount,
+      characterCount,
+      highAiParagraphCount: highAiCount,
+      verdict: parsed.verdict || (parsed.overallAiScore > 50 ? "Phát hiện nội dung có sự can thiệp của AI" : "Văn bản tương đối tự nhiên"),
+      summary: parsed.summary || "Đã hoàn thành kiểm tra và phân đoạn chi tiết.",
+      burstinessScore: typeof parsed.burstinessScore === 'number' ? parsed.burstinessScore : 55,
+      perplexityScore: typeof parsed.perplexityScore === 'number' ? parsed.perplexityScore : 60,
+      plagiarismRisk: parsed.plagiarismRisk || (parsed.overallAiScore >= 60 ? 'Cao' : parsed.overallAiScore >= 30 ? 'Trung bình' : 'Thấp'),
+      detectedSourcesSummary: parsed.detectedSourcesSummary || "Đã quét và đối chiếu với các nguồn học thuật và giáo trình tiêu chuẩn.",
+      segments
+    };
+  } catch (error) {
+    console.warn("Gemini AI Detection Error, using heuristic fallback:", error);
+    return detectAiHeuristic(trimmedText);
+  }
+};
+
+export const humanizeAiSegment = async (
+  originalText: string,
+  context?: string,
+  major?: string,
+  style: 'academic' | 'concise' | 'argumentative' = 'academic'
+): Promise<{ humanizedText: string; improvements: string[] }> => {
+  if (!apiKey) {
+    // Local heuristic rewrite
+    const cleaned = originalText
+      .replace(/trong bối cảnh/gi, 'khi nghiên cứu về')
+      .replace(/đóng vai trò vô cùng quan trọng/gi, 'là yếu tố then chốt')
+      .replace(/đóng vai trò quan trọng/gi, 'tác động trực tiếp')
+      .replace(/không thể phủ nhận rằng/gi, 'thực tế cho thấy')
+      .replace(/nhìn chung,/gi, '')
+      .replace(/tóm lại,/gi, 'kết luận,')
+      .replace(/bên cạnh đó,/gi, 'đồng thời,')
+      .replace(/\s{2,}/g, ' ')
+      .trim();
+
+    return {
+      humanizedText: cleaned,
+      improvements: [
+        "Đã loại bỏ các cụm từ sáo rỗng thường gặp của LLM",
+        "Tăng tính trực tiếp và chuyển đổi giọng văn chủ động"
+      ]
+    };
+  }
+
+  const model = "gemini-3.8-flash";
+
+  const styleInstruction = style === 'concise'
+    ? 'Phong cách: Súc tích, đanh thép, lược bỏ mọi hư từ, tập trung vào trọng tâm lập luận.'
+    : style === 'argumentative'
+    ? 'Phong cách: Phản biện sắc bén, đưa ra quan điểm đối sánh, tăng tính học thuật chuyên sâu.'
+    : 'Phong cách: Học thuật chuẩn mực, tự nhiên, đa dạng nhịp điệu câu, giàu tính khách quan và khoa học.';
+
+  const prompt = `Bạn là một biên tập viên học thuật và chuyên gia ngôn ngữ học xuất sắc.
+Nhiệm vụ: Viết lại (Humanize / Phá vỡ cấu trúc AI) cho đoạn văn dưới đây sao cho:
+1. KHÔNG BỊ CÁC CÔNG CỤ PHÁT HIỆN AI (Turnitin AI, iThenticate, GPTZero, CopyLeaks, Winston AI...) phát hiện (đạt chỉ số AI < 5%).
+2. Sử dụng nhịp điệu tự nhiên của con người: Độ biến thiên độ dài câu cao (Burstiness) - kết hợp giữa câu ngắn dứt khoát và câu phức nhiều mệnh đề logic.
+3. Độ phức hợp từ vựng cao (Perplexity): Thay thế các từ sáo rỗng thường gặp của LLM ("đóng vai trò quan trọng", "không thể thiếu", "nhìn chung", "bên cạnh đó", "trong bối cảnh") bằng cách diễn đạt sắc bén, trực tiếp, đậm chất nghiên cứu khoa học thực chứng.
+4. ${styleInstruction}
+5. Giữ nguyên 100% ý nghĩa cốt lõi, số liệu, tên tác giả, thực thể khoa học của bản gốc.
+${major ? `Lĩnh vực/Chuyên ngành: ${major}` : ''}
+${context ? `Ngữ cảnh toàn bài: ${context.substring(0, 1000)}` : ''}
+
+Đoạn văn gốc cần viết lại:
+"""
+${originalText}
+"""
+
+YÊU CẦU TRẢ VỀ ĐÚNG ĐỊNH DẠNG JSON:
+{
+  "humanizedText": "Nội dung đã được viết lại tự nhiên hoàn toàn theo văn phong học thuật con người",
+  "improvements": [
+    "Điểm cải thiện 1 (ví dụ: Đã xóa cụm từ sáo rỗng của AI)",
+    "Điểm cải thiện 2 (ví dụ: Tăng độ biến thiên câu và đưa vào giọng điệu phản biện chủ động)"
+  ]
+}
+`;
+
+  try {
+    const response = await generateWithRetry({
+      model,
+      contents: prompt,
+      config: {
+        responseMimeType: "application/json"
+      }
+    });
+
+    let raw = response.text || "{}";
+    const match = raw.match(/\{[\s\S]*\}/);
+    if (match) raw = match[0];
+    const parsed = JSON.parse(raw);
+
+    return {
+      humanizedText: parsed.humanizedText || originalText,
+      improvements: Array.isArray(parsed.improvements) ? parsed.improvements : ["Đã tối ưu hóa nhịp điệu câu và văn phong học thuật."]
+    };
+  } catch (error) {
+    console.warn("Humanize Segment Error, using local fallback:", error);
+    const cleaned = originalText
+      .replace(/trong bối cảnh/gi, 'khi khảo sát')
+      .replace(/đóng vai trò quan trọng/gi, 'tác động thực chứng')
+      .replace(/không thể phủ nhận rằng/gi, 'kết quả chứng minh')
+      .replace(/nhìn chung,/gi, '')
+      .replace(/tóm lại,/gi, 'như vậy,');
+    return {
+      humanizedText: cleaned,
+      improvements: ["Đã lược bỏ các cụm từ nối máy móc và tái cấu trúc câu."]
+    };
+  }
+};
+
