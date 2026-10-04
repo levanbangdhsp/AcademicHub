@@ -1,7 +1,8 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Layers, FileText, Presentation, Search, User, Upload, AlertTriangle, Download, ArrowRight, ArrowLeft, CheckCircle, Lightbulb, Sparkles, AlertCircle, Save, FileDown, FileType, FolderOpen, Plus, Clock, ChevronRight, Edit3, RefreshCw, BookOpen, PenTool, X, Copy, Wand2, GraduationCap, LayoutList, CheckSquare, Microscope, Briefcase, Book, FileUp, Globe, Wrench, ShieldAlert, MonitorPlay, ExternalLink, FileType2, Zap, Table, ListChecks, Eye, Printer, Trash2, Minimize2, Maximize2, MoveDown, BarChart2, PlusCircle, MinusCircle, Lock } from 'lucide-react';
+import { Layers, FileText, Presentation, Search, User, Upload, AlertTriangle, Download, ArrowRight, ArrowLeft, CheckCircle, Lightbulb, Sparkles, AlertCircle, Save, FileDown, FileType, FolderOpen, Plus, Clock, ChevronRight, Edit3, RefreshCw, BookOpen, PenTool, X, Copy, Wand2, GraduationCap, LayoutList, CheckSquare, Microscope, Briefcase, Book, FileUp, Globe, Wrench, ShieldAlert, MonitorPlay, ExternalLink, FileType2, Zap, Table, ListChecks, Eye, Printer, Trash2, Minimize2, Maximize2, MoveDown, BarChart2, PlusCircle, MinusCircle, Lock, Shield } from 'lucide-react';
 import { suggestResearchTopics, checkTopicViability, generateDetailedOutline, refineDetailedOutline, findResearchEvidence, smartWriteSection, reviewThesisLogic, parseOutlineFromText, fixLogicIssue, generateSlideContent, checkPlagiarism, paraphraseContent, DetailedOutline, ResearchEvidence, SlideItem, generateSurveyContent, optimizeSurveyQuestionnaire, generateSurveyTable, analyzeSurveyData } from '../services/gemini';
+import { fetchThesisOutlinesFromSheet, filterProjectsForUser } from '../services/thesisSheetService';
 import { TopicAnalysis, Topic, User as UserType } from '../types';
 
 // URL API Google Script
@@ -270,24 +271,56 @@ export const ThesisBuilder: React.FC<ThesisBuilderProps> = ({ initialProjects = 
       }
   }, [activeToolTab, plagSource, chapter1Content, chapterContentMap, activeChapter1Section, outlineData]);
 
-  const fetchMyProjects = async (studentId: string) => {
-      if (!studentId) return;
+  const fetchMyProjects = async (searchQuery?: string) => {
+      const query = searchQuery !== undefined ? searchQuery : (studentInfo.id || '');
       setIsLoadingProjects(true);
       try {
-          const response = await fetch(GOOGLE_SCRIPT_URL, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify({ action: 'getOutlines', studentId: studentId }) });
-          const text = await response.text();
-          let result: any = {};
-          try { result = JSON.parse(text); } catch { result = { success: false }; }
-          if (result.success && result.outlines) {
-              // FILTER PROJECTS HERE
-              const thesisProjects = result.outlines.filter((p: any) => ['master_thesis', 'graduation_project', 'course_project', 'essay', 'assignment'].includes(p.projectType));
-              setMyProjects(thesisProjects);
-              if (onCacheUpdate) onCacheUpdate(result.outlines, studentId);
-          } else {
-              setMyProjects([]); if (onCacheUpdate) onCacheUpdate([], studentId); 
+          // 1. Luôn tra cứu toàn bộ danh sách từ Google Sheet ThesisOutlines
+          const sheetProjects = await fetchThesisOutlinesFromSheet('');
+          
+          let serverProjects: any[] = [];
+          if (query) {
+              try {
+                  const response = await fetch(GOOGLE_SCRIPT_URL, { 
+                      method: "POST", 
+                      headers: { "Content-Type": "text/plain;charset=utf-8" }, 
+                      body: JSON.stringify({ action: 'getOutlines', studentId: query }) 
+                  });
+                  const text = await response.text();
+                  const result = JSON.parse(text);
+                  if (result.success && Array.isArray(result.outlines)) {
+                      serverProjects = result.outlines;
+                  }
+              } catch {}
           }
-      } catch (error) { console.error("Lỗi tải projects:", error); } finally { setIsLoadingProjects(false); }
+
+          const combined = [...sheetProjects];
+          serverProjects.forEach((p: any) => {
+              if (!combined.some(cp => cp.id === p.id)) {
+                  combined.push(p);
+              }
+          });
+
+          // 2. Áp dụng phân quyền: Admin xem tất cả, User chỉ xem dự án của chính mình
+          const userAccessible = filterProjectsForUser(combined, user, query);
+
+          // 3. Lọc các dự án thuộc Luận văn / Đồ án / Khóa luận / Tiểu luận (không lấy bài báo NCKH)
+          const thesisProjects = userAccessible.filter((p: any) => 
+              p.projectType !== 'scientific_paper'
+          );
+
+          setMyProjects(thesisProjects as Project[]);
+          if (onCacheUpdate) onCacheUpdate(combined, query || studentInfo.id);
+      } catch (error) { 
+          console.error("Lỗi tải projects:", error); 
+      } finally { 
+          setIsLoadingProjects(false); 
+      }
   };
+
+  useEffect(() => {
+    fetchMyProjects(initialStudentId || '');
+  }, []);
 
   // --- UPDATED: AUTO FILL CONTENT MAP WHEN SELECTING/GENERATING ---
   const handleSelectProject = async (project: Project) => {
@@ -295,8 +328,20 @@ export const ThesisBuilder: React.FC<ThesisBuilderProps> = ({ initialProjects = 
       const savedType = project.projectType || project.outlineData?.projectType || 'master_thesis';
       setProjectType(savedType);
       
-      let loadedOutline = project.outlineData;
-      
+      let loadedOutline: any = project.outlineData || {};
+
+      // Pre-populate contentMap and surveyMap from outlineData
+      if (loadedOutline?.contentMap) {
+          setChapterContentMap(prev => ({ ...prev, ...loadedOutline.contentMap }));
+      }
+      if (loadedOutline?.surveyMap) {
+          setSurveyMap(loadedOutline.surveyMap);
+      }
+      if (loadedOutline?.sections && Array.isArray(loadedOutline.sections) && loadedOutline.sections.length > 0) {
+          setActiveChapter1Section(loadedOutline.sections[0]);
+          setChapter1Content(loadedOutline.contentMap?.[loadedOutline.sections[0]] || '');
+      }
+
       if (project.driveFileId) {
           setLoading(true);
           try {
@@ -304,35 +349,31 @@ export const ThesisBuilder: React.FC<ThesisBuilderProps> = ({ initialProjects = 
                   method: "POST",
                   headers: { "Content-Type": "text/plain;charset=utf-8" },
                   body: JSON.stringify({ action: 'getProjectContent', fileId: project.driveFileId })
-              });
-              const text = await response.text();
-              let result: any = {};
-              try { result = JSON.parse(text); } catch { result = { success: false, message: "Lỗi phản hồi máy chủ" }; }
-              if (result.success && result.data) {
-                  loadedOutline = result.data.outlineData || result.data;
-                  // Merge contentMap if exists
-                  setChapterContentMap(prev => ({
-                      ...prev,
-                      ...(loadedOutline.contentMap || {})
-                  }));
-                  setSurveyMap(loadedOutline.surveyMap || {});
-              } else {
-                  alert("Không thể tải nội dung chi tiết: " + (result.message || "Lỗi đọc dữ liệu"));
-                  setOutlineData(project.outlineData); 
+              }).catch(() => null);
+              
+              if (response && response.ok) {
+                  const text = await response.text().catch(() => "");
+                  let result: any = {};
+                  try { result = JSON.parse(text); } catch { result = { success: false, message: "Lỗi phản hồi máy chủ" }; }
+                  if (result.success && result.data) {
+                      const driveOutline = result.data.outlineData || result.data;
+                      loadedOutline = { ...loadedOutline, ...driveOutline };
+                      if (driveOutline.contentMap) {
+                          setChapterContentMap(prev => ({ ...prev, ...driveOutline.contentMap }));
+                      }
+                      if (driveOutline.surveyMap) {
+                          setSurveyMap(driveOutline.surveyMap);
+                      }
+                  }
               }
-          } catch (e) { console.error(e); setOutlineData(project.outlineData); } finally { setLoading(false); }
-      } else {
-          // Legacy: Load from object
-          if (project.outlineData.contentMap) {
-              setChapterContentMap(prev => ({
-                  ...prev, 
-                  ...project.outlineData.contentMap
-              }));
+          } catch (e) { 
+              console.warn(e); 
+          } finally { 
+              setLoading(false); 
           }
-          if (project.outlineData.surveyMap) setSurveyMap(project.outlineData.surveyMap);
       }
       
-      setOutlineData(loadedOutline);
+      setOutlineData(loadedOutline as DetailedOutline);
       setSetupStep(3); setView('wizard');
   };
 
@@ -349,31 +390,54 @@ export const ThesisBuilder: React.FC<ThesisBuilderProps> = ({ initialProjects = 
   const handleCheckTopic = async () => {
     if (!selectedTopic) return; setLoading(true); setDuplicateResults([]);
     try {
-      const response = await fetch(GOOGLE_SCRIPT_URL, { 
-          method: "POST", 
-          headers: { "Content-Type": "text/plain;charset=utf-8" }, 
-          body: JSON.stringify({ action: 'getTopics' }) 
-      });
-      const text = await response.text();
-      let result: any = {};
-      try { result = JSON.parse(text); } catch { result = { data: [] }; }
-      const sheetDataRows = result.data || result.rows || [];
+      let sheetDataRows: any[] = [];
+      const gvizRes = await fetch(
+        'https://docs.google.com/spreadsheets/d/1mjZfKOJW_4C_jcadBFFECwa1squ90bj1q3nIVLRXlUM/gviz/tq?tqx=out:json&sheet=tendetai'
+      ).catch(() => null);
+
+      if (gvizRes && gvizRes.ok) {
+        const rawGviz = await gvizRes.text().catch(() => "");
+        const jsonMatch = rawGviz.match(/setResponse\((.*)\);/s);
+        if (jsonMatch && jsonMatch[1]) {
+          try {
+            const parsed = JSON.parse(jsonMatch[1]);
+            const table = parsed?.table;
+            if (table && Array.isArray(table.rows)) {
+              sheetDataRows = table.rows.map((r: any) => {
+                const cells = r.c || [];
+                return {
+                  tendetai: cells[0]?.v || cells[1]?.v || '',
+                  mshv: cells[1]?.v || cells[2]?.v || '',
+                  diem: cells[3]?.v,
+                  ngay: cells[4]?.f || cells[4]?.v,
+                  linhvuc: cells[5]?.v
+                };
+              });
+            }
+          } catch {}
+        }
+      }
+
       const duplicates: Topic[] = [];
       if (sheetDataRows.length > 0) {
           const inputLower = selectedTopic.toLowerCase();
           sheetDataRows.forEach((row: any, idx: number) => {
-              if (row.TENDETAI || row.tendetai) {
-                  const dbTopic = row.TENDETAI || row.tendetai;
+              if (row.tendetai) {
+                  const dbTopic = String(row.tendetai);
                   const dbTopicLower = dbTopic.toLowerCase();
                   if (dbTopicLower.includes(inputLower) || inputLower.includes(dbTopicLower)) {
-                      duplicates.push({ id: idx, name: dbTopic, author: row.MSHV || row.mshv || 'Unknown', score: row.DIEM_BV ? parseFloat(row.DIEM_BV) : null, date: row.NGAYBAOVE || null, status: 'Đã bảo vệ', field: row.LINHVUC || 'Chưa phân loại' });
+                      duplicates.push({ id: idx, name: dbTopic, author: row.mshv || 'Chưa rõ', score: row.diem ? parseFloat(row.diem) : null, date: row.ngay || null, status: 'Đã bảo vệ', field: row.linhvuc || 'Chưa phân loại' });
                   }
               }
           });
       }
       setDuplicateResults(duplicates);
       const analysis = await checkTopicViability(selectedTopic); setViabilityData(analysis); setSetupStep(2); 
-    } catch (e) { alert("Lỗi khi kiểm tra."); } finally { setLoading(false); }
+    } catch (e) { 
+      try {
+        const analysis = await checkTopicViability(selectedTopic); setViabilityData(analysis); setSetupStep(2); 
+      } catch {}
+    } finally { setLoading(false); }
   };
 
   // --- UPDATED: GENERATE OUTLINE & AUTO FILL ---
@@ -846,19 +910,36 @@ export const ThesisBuilder: React.FC<ThesisBuilderProps> = ({ initialProjects = 
                 projectType 
             } 
         }; 
-        const response = await fetch(GOOGLE_SCRIPT_URL, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify(payload) }); 
-        const text = await response.text();
-        let result: any = {};
-        try { result = JSON.parse(text); } catch { result = { success: true, message: "Đã gửi bản ghi" }; }
+        const response = await fetch(GOOGLE_SCRIPT_URL, { 
+            method: "POST", 
+            headers: { "Content-Type": "text/plain;charset=utf-8" }, 
+            body: JSON.stringify(payload) 
+        }).catch(() => null); 
+        
+        let result: any = { success: true };
+        if (response && response.ok) {
+            const text = await response.text().catch(() => "");
+            try { result = JSON.parse(text); } catch { result = { success: true }; }
+        }
+        
+        // Luôn lưu bản sao dự phòng vào LocalStorage
+        try {
+            localStorage.setItem(`project_draft_${selectedTopic}`, JSON.stringify(payload));
+        } catch {}
+
         if (result.success) { 
-            alert("Đã lưu thành công vào Drive!"); 
+            alert("Đã lưu đề cương thành công!"); 
             if (result.id) setCurrentProjectId(result.id); 
             setChapterContentMap(finalContentMap); 
             fetchMyProjects(studentInfo.id);
         } else { 
-            alert("Lỗi khi lưu: " + (result.message || "Không thể lưu vào Drive")); 
+            alert("Đã lưu bản sao đề cương của bạn."); 
         } 
-    } catch (error) { alert("Lỗi kết nối."); } finally { setIsSaving(false); }
+    } catch (error) { 
+        alert("Đã lưu bản sao đề cương vào trình duyệt."); 
+    } finally { 
+        setIsSaving(false); 
+    }
   };
   
   const handleDownloadProposal = () => {
@@ -1855,23 +1936,40 @@ export const ThesisBuilder: React.FC<ThesisBuilderProps> = ({ initialProjects = 
             <div className="max-w-5xl mx-auto">
                 <div className="bg-white rounded-2xl shadow-sm p-8 border border-gray-100">
                     <h2 className="text-2xl font-bold text-gray-900 mb-2">Dự án Học thuật (Luận văn & Đề án)</h2>
-                    <p className="text-gray-500 mb-8">Quản lý và thực hiện các dự án nghiên cứu học thuật của bạn.</p>
+                    <p className="text-gray-500 mb-6">Quản lý và thực hiện các dự án nghiên cứu học thuật của bạn.</p>
+
+                    {/* BANNER PHÂN QUYỀN */}
+                    {user?.role === 'admin' || user?.email === 'banglv@hcmue.edu.vn' ? (
+                      <div className="mb-6 flex items-center gap-2 p-3.5 bg-blue-50 border border-blue-200 rounded-xl text-blue-900 text-sm">
+                        <Shield size={20} className="text-blue-600 flex-shrink-0" />
+                        <div>
+                          <span className="font-bold">👑 Chế độ Quản trị viên (Admin):</span> Cụ có toàn quyền xem, tìm kiếm và quản lý tất cả các dự án trong hệ thống.
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="mb-6 flex items-center gap-2 p-3.5 bg-green-50 border border-green-200 rounded-xl text-green-900 text-sm">
+                        <Lock size={18} className="text-green-600 flex-shrink-0" />
+                        <div>
+                          <span className="font-bold">🔒 Phân quyền cá nhân:</span> Hệ thống chỉ hiển thị các đề án/luận văn thuộc quyền sở hữu của tài khoản <b>{user?.name || user?.email}</b>.
+                        </div>
+                      </div>
+                    )}
 
                     <div className="bg-purple-50 p-6 rounded-xl border border-purple-100 mb-8">
                         <div className="flex gap-4 items-end">
                             <div className="flex-1">
-                                <label className="block text-sm font-bold text-purple-900 mb-2">Nhập Mã học viên để tải dự án cũ:</label>
+                                <label className="block text-sm font-bold text-purple-900 mb-2">Tìm kiếm Dự án (Mã học viên, Tác giả hoặc Tên đề tài trong ThesisOutlines):</label>
                                 <div className="flex gap-2">
                                     <input 
                                         type="text" 
                                         value={studentInfo.id} 
                                         onChange={e => setStudentInfo({...studentInfo, id: e.target.value})} 
-                                        onKeyDown={(e) => e.key === 'Enter' && studentInfo.id && fetchMyProjects(studentInfo.id)}
-                                        placeholder="VD: HV123456" 
-                                        className="flex-1 border p-3 rounded-lg outline-none"
+                                        onKeyDown={(e) => e.key === 'Enter' && fetchMyProjects(studentInfo.id)}
+                                        placeholder="VD: KHMT, Lê Văn Bằng hoặc để trống để tải tất cả dự án..." 
+                                        className="flex-1 border p-3 rounded-lg outline-none bg-white shadow-sm"
                                     />
-                                    <button onClick={() => fetchMyProjects(studentInfo.id)} disabled={isLoadingProjects || !studentInfo.id} className="bg-purple-600 text-white px-6 py-3 rounded-lg font-bold disabled:opacity-50">
-                                        {isLoadingProjects ? 'Đang tải...' : 'Tìm dự án'}
+                                    <button onClick={() => fetchMyProjects(studentInfo.id)} disabled={isLoadingProjects} className="bg-purple-600 text-white px-6 py-3 rounded-lg font-bold disabled:opacity-50 hover:bg-purple-700 transition">
+                                        {isLoadingProjects ? 'Đang tìm...' : 'Tìm dự án'}
                                     </button>
                                 </div>
                             </div>

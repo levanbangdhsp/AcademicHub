@@ -13,6 +13,7 @@ import { AdminDashboard } from './components/AdminDashboard';
 import { TutorialsView } from './components/TutorialsView';
 import { HomeView } from './components/HomeView'; // Import HomeView
 import { AiDetector } from './components/AiDetector';
+import { filterProjectsForUser } from './services/thesisSheetService';
 import { AiAccessDeniedModal } from './components/AiAccessDeniedModal';
 import { User, isAiCheckAdmin, ADMIN_EMAIL } from './types';
 
@@ -93,9 +94,10 @@ const App: React.FC = () => {
       setCachedStudentId(studentId);
   };
 
-  // Calculate counts for HomeView
-  const paperCount = cachedProjects.filter(p => p.projectType === 'scientific_paper').length;
-  const thesisCount = cachedProjects.length - paperCount;
+  // Calculate counts for HomeView filtered by user permissions
+  const userProjects = filterProjectsForUser(cachedProjects, user, '');
+  const paperCount = userProjects.filter(p => p.projectType === 'scientific_paper').length;
+  const thesisCount = userProjects.length - paperCount;
 
   return (
     <div className="min-h-screen bg-gray-50 font-sans text-gray-900 selection:bg-blue-100 selection:text-blue-900 flex flex-col">

@@ -41,15 +41,21 @@ export const AdminDashboard: React.FC = () => {
         method: "POST",
         headers: { "Content-Type": "text/plain;charset=utf-8" },
         body: JSON.stringify(payload)
+      }).catch((err) => {
+        console.warn("Lỗi mạng khi gọi Admin API:", err?.message || err);
+        return null;
       });
-      const text = await response.text();
+      if (!response) {
+        return { success: false, message: "Không thể kết nối máy chủ Google Script." };
+      }
+      const text = await response.text().catch(() => "");
       try {
         return JSON.parse(text);
       } catch {
         return { success: false, message: "Lỗi Server HTML: " + text.substring(0, 100) };
       }
     } catch (e: any) {
-      return { success: false, message: "Lỗi kết nối: " + e.message };
+      return { success: false, message: "Lỗi kết nối: " + (e?.message || e) };
     }
   };
 
@@ -82,6 +88,17 @@ export const AdminDashboard: React.FC = () => {
           if (table && Array.isArray(table.rows)) {
             const colLabels = (table.cols || []).map((c: any) => (c?.label || '').trim());
             const rows: any[] = [];
+
+            const normalizeKey = (str: string) => {
+              return String(str || '')
+                .normalize('NFD')
+                .replace(/[\u0300-\u036f]/g, '')
+                .replace(/đ/g, 'd')
+                .replace(/Đ/g, 'D')
+                .replace(/[^a-zA-Z0-9]/g, '')
+                .toLowerCase();
+            };
+
             for (let rIndex = 0; rIndex < table.rows.length; rIndex++) {
               const r = table.rows[rIndex];
               const cells = r.c || [];
@@ -92,14 +109,30 @@ export const AdminDashboard: React.FC = () => {
                 if (label) {
                   rowObj[label] = val;
                   rowObj[label.toLowerCase()] = val;
-                  rowObj[label.toLowerCase().replace(/\s+/g, '')] = val;
+                  const norm = normalizeKey(label);
+                  if (norm) rowObj[norm] = val;
                 }
                 rowObj[`col_${cIndex}`] = val;
               });
 
-              if (!rowObj.email && cells[1]?.v) rowObj.email = cells[1].v;
-              if (!rowObj.hovaten && cells[0]?.v) rowObj.hovaten = cells[0].v;
-              if (!rowObj.phone && cells[2]?.v) rowObj.phone = cells[2].v;
+              // Ánh xạ chuẩn theo các cột của Google Sheet:
+              // Cột A (index 0) = ID (Mã tài khoản)
+              // Cột B (index 1) = Họ và tên
+              // Cột C (index 2) = Email
+              // Cột D (index 3) = Password
+              const colA_id = String(cells[0]?.v ?? cells[0]?.f ?? '').trim();
+              const colB_name = String(cells[1]?.v ?? cells[1]?.f ?? '').trim();
+              const colC_email = String(cells[2]?.v ?? cells[2]?.f ?? '').trim();
+
+              rowObj.sheet_id = colA_id;
+              if (colB_name) {
+                rowObj.hovaten = colB_name;
+                rowObj.fullName = colB_name;
+                rowObj.name = colB_name;
+              }
+              if (colC_email) {
+                rowObj.email = colC_email;
+              }
               
               rows.push(rowObj);
             }
@@ -142,14 +175,18 @@ export const AdminDashboard: React.FC = () => {
                    return undefined;
                 };
 
-                const emailVal = getVal(['email', 'Email', 'EMAIL', 'col_1']) || '';
-                const nameVal = getVal(['hovaten', 'Hovaten', 'name', 'Name', 'Họ và tên', 'col_0']) || 'Người dùng';
-                const phoneVal = getVal(['phone', 'sodienthoai', 'Sodienthoai', 'Điện thoại', 'col_2', 'col_3']) || '';
-                const statusVal = getVal(['canedit', 'CanEdit', 'status', 'Status', 'trangthai', 'Trạng thái', 'col_4']) || 'Hoạt động';
-                const canEditVal = getVal(['canedit', 'CanEdit', 'canEdit']) === true || String(getVal(['canedit', 'CanEdit', 'canEdit'])).toLowerCase() === 'true';
+                // Cột C (index 2 / col_2) = Email
+                const emailVal = getVal(['email', 'Email', 'EMAIL', 'col_2']) || '';
+                // Cột B (index 1 / col_1) = Họ và tên (KHÔNG lấy col_0 vì col_0 là ID)
+                const nameVal = getVal(['hovaten', 'fullName', 'name', 'Hovaten', 'Name', 'Họ và tên', 'col_1']) || 'Người dùng';
+                // Cột E (index 4 / col_4) = Số điện thoại
+                const phoneVal = getVal(['sodienthoai', 'phone', 'Phone', 'Sodienthoai', 'Điện thoại', 'col_4']) || '';
+                const statusVal = getVal(['status', 'Status', 'trangthai', 'Trạng thái', 'col_11', 'col_6']) || 'Hoạt động';
+                const canEditVal = getVal(['canedit', 'CanEdit', 'canEdit', 'col_10']) === true || String(getVal(['canedit', 'CanEdit', 'canEdit', 'col_10'])).toLowerCase() === 'true';
 
                 return {
                   id: idx,
+                  sheetId: String(row.sheet_id || row.col_0 || ''),
                   name: String(nameVal),
                   email: String(emailVal).trim().toLowerCase(), 
                   phone: phoneVal ? String(phoneVal).replace(/'/g, '') : '',
@@ -290,7 +327,9 @@ export const AdminDashboard: React.FC = () => {
              return undefined;
           };
 
-          const rawCanEdit = getVal(['canedit', 'CanEdit', 'canEdit', 'CANEDIT', 'col_4']);
+          // Cột H (index 7 / col_7) = CanEdit
+          const rawCanEdit = getVal(['canedit', 'CanEdit', 'canEdit', 'CANEDIT', 'col_7', 'col_4']);
+          // Cột I (index 8 / col_8) = CanCheckAi
           const rawCanCheckAi = getVal(['cancheckai', 'CanCheckAi', 'canCheckAi', 'CANCHECKAI', 'quyenai', 'QuyenAI', 'aipermission', 'AIPermission', 'quyenkiemtraai', 'col_8', 'col_5']);
 
           // Robust checking for boolean TRUE
@@ -300,7 +339,10 @@ export const AdminDashboard: React.FC = () => {
               return str === 'true' || str === '1' || str === 'yes';
           };
 
-          const cleanEmail = String(getVal(['email', 'Email', 'EMAIL', 'col_1']) || '').trim().toLowerCase();
+          // Cột C (index 2 / col_2) = Email
+          const cleanEmail = String(getVal(['email', 'Email', 'EMAIL', 'col_2']) || '').trim().toLowerCase();
+          // Cột B (index 1 / col_1) = Họ và tên (KHÔNG lấy col_0 vì col_0 là ID)
+          const nameVal = getVal(['hovaten', 'fullName', 'name', 'Hovaten', 'Name', 'Họ và tên', 'col_1']) || 'Cán bộ';
           
           let locallyGranted = false;
           try {
@@ -315,10 +357,11 @@ export const AdminDashboard: React.FC = () => {
 
           return {
             id: idx,
-            name: getVal(['hovaten', 'Hovaten', 'name', 'Name', 'Họ và tên', 'col_0']) || 'Cán bộ',
+            sheetId: String(row.sheet_id || row.col_0 || ''),
+            name: String(nameVal),
             email: cleanEmail,
-            role: getVal(['role', 'Role', 'col_3']) || 'sub-admin',
-            status: getVal(['status', 'Status', 'trangthai', 'col_4']) || 'Hoạt động',
+            role: getVal(['role', 'Role', 'col_4']) || (cleanEmail === ADMIN_EMAIL.toLowerCase() ? 'admin' : 'sub-admin'),
+            status: getVal(['status', 'Status', 'trangthai', 'col_6']) || 'Hoạt động',
             canEdit: isTrue(rawCanEdit),
             canCheckAi: canCheckAiVal
           };

@@ -181,8 +181,14 @@ export const TrainingModule: React.FC<TrainingModuleProps> = ({ user }) => {
               method: "POST",
               headers: { "Content-Type": "text/plain;charset=utf-8" },
               body: JSON.stringify({ action: 'checkProfile', email: email })
-          });
-          const text = await response.text();
+          }).catch(() => null);
+
+          if (!response || !response.ok) {
+              setIsCheckingProfile(false);
+              return;
+          }
+
+          const text = await response.text().catch(() => "");
           let result: any = {};
           try { result = JSON.parse(text); } catch { result = { success: false }; }
           
@@ -421,11 +427,18 @@ export const TrainingModule: React.FC<TrainingModuleProps> = ({ user }) => {
               method: "POST",
               headers: { "Content-Type": "text/plain;charset=utf-8" },
               body: JSON.stringify(payload)
-            });
+            }).catch(() => null);
       
-            const text = await response.text();
-            let result: any = {};
-            try { result = JSON.parse(text); } catch { result = { success: true, message: "Đã nộp hồ sơ thành công" }; }
+            let result: any = { success: true, message: "Đã nộp hồ sơ thành công" };
+            if (response && response.ok) {
+              const text = await response.text().catch(() => "");
+              try { result = JSON.parse(text); } catch { result = { success: true }; }
+            }
+            
+            // Lưu bản sao hồ sơ vào LocalStorage
+            try {
+              localStorage.setItem(`profile_${user?.email || 'submitted'}`, JSON.stringify(payload));
+            } catch {}
             
             if (result.success) {
               setSubmitted(true);

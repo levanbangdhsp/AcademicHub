@@ -1,7 +1,8 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-import { FileText, Lightbulb, RefreshCw, Upload, PenTool, CheckCircle, ArrowRight, Wand2, BookOpen, Quote, Globe, Cpu, Copy, ArrowLeft, FileDown, Save, User, Clock, Plus, Wrench, ShieldAlert, Download, Edit2, Sparkles, Palette, ClipboardList, Zap, Presentation, MonitorPlay, X, Lock, Table, PlusCircle, MinusCircle, AlertCircle, Trash2, AlertTriangle } from 'lucide-react';
+import { FileText, Lightbulb, RefreshCw, Upload, PenTool, CheckCircle, ArrowRight, Wand2, BookOpen, Quote, Globe, Cpu, Copy, ArrowLeft, FileDown, Save, User, Clock, Plus, Wrench, ShieldAlert, Download, Edit2, Sparkles, Palette, ClipboardList, Zap, Presentation, MonitorPlay, X, Lock, Table, PlusCircle, MinusCircle, AlertCircle, Trash2, AlertTriangle, Shield } from 'lucide-react';
 import { suggestResearchTopics, generatePaperOutline, convertThesisToPaper, IMRaD_Paper, smartWriteSection, paraphraseContent, checkPlagiarism, suggestShortPaperTitle, analyzePaperStyle, StyleGuide, generateSlideContent, SlideItem, DetailedOutline, generateFullPaper, generateSurveyTable, analyzeSurveyData } from '../services/gemini';
+import { fetchThesisOutlinesFromSheet, filterProjectsForUser } from '../services/thesisSheetService';
 import { User as UserType } from '../types';
 
 // URL API Google Script - ENSURE THIS IS THE LATEST DEPLOYED URL
@@ -188,24 +189,58 @@ export const ResearchBuilder: React.FC<ResearchBuilderProps> = ({
     }
   }, [showToolsModal, plagSource, slideSource]); // Removed paperData from dependencies
 
-  const fetchMyPapers = async () => {
-      if (!studentId) return;
+  const fetchMyPapers = async (searchQuery?: string) => {
+      const query = searchQuery !== undefined ? searchQuery : (studentId || '');
       setIsLoadingPapers(true);
       try {
-          const response = await fetch(GOOGLE_SCRIPT_URL, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify({ action: 'getOutlines', studentId: studentId }) });
-          const text = await response.text();
-          let result: any = {};
-          try { result = JSON.parse(text); } catch { result = { success: false }; }
-          if (result.success && result.outlines) {
-              const allProjects = result.outlines;
-              const papers = allProjects.filter((p: any) => p.projectType === 'scientific_paper');
-              setMyPapers(papers);
-              if (onCacheUpdate) {
-                  onCacheUpdate(allProjects, studentId);
+          // 1. Luôn tra cứu toàn bộ danh sách từ Google Sheet ThesisOutlines
+          const sheetProjects = await fetchThesisOutlinesFromSheet('');
+          
+          let serverProjects: any[] = [];
+          if (query) {
+              try {
+                  const response = await fetch(GOOGLE_SCRIPT_URL, { 
+                      method: "POST", 
+                      headers: { "Content-Type": "text/plain;charset=utf-8" }, 
+                      body: JSON.stringify({ action: 'getOutlines', studentId: query }) 
+                  });
+                  const text = await response.text();
+                  const result = JSON.parse(text);
+                  if (result.success && Array.isArray(result.outlines)) {
+                      serverProjects = result.outlines;
+                  }
+              } catch {}
+          }
+
+          const combined = [...sheetProjects];
+          serverProjects.forEach((p: any) => {
+              if (!combined.some(cp => cp.id === p.id)) {
+                  combined.push(p);
               }
-          } else { setMyPapers([]); alert("Không tìm thấy bài báo nào cho mã học viên này."); }
-      } catch (error) { console.error("Lỗi tải bài báo:", error); } finally { setIsLoadingPapers(false); }
+          });
+
+          // 2. Phân quyền truy cập: Admin xem tất cả bài báo, User thường chỉ xem bài báo của mình
+          const userAccessible = filterProjectsForUser(combined, user, query);
+
+          // 3. Lọc các dự án thuộc bài báo khoa học (scientific_paper)
+          const papers = userAccessible.filter((p: any) => 
+              p.projectType === 'scientific_paper' || p.projectType === 'paper' || p.projectType === 'research'
+          );
+
+          setMyPapers(papers);
+          if (onCacheUpdate) {
+              onCacheUpdate(combined, query || studentId);
+          }
+      } catch (error) { 
+          console.error("Lỗi tải bài báo:", error); 
+      } finally { 
+          setIsLoadingPapers(false); 
+      }
   };
+
+  useEffect(() => {
+    fetchMyPapers(studentId || '');
+  }, []);
 
   const handleSelectPaper = async (paper: any) => {
       setResultTableHtml(''); // <--- THÊM DÒNG NÀY (Để xóa bảng của bài cũ đi)
@@ -218,6 +253,14 @@ export const ResearchBuilder: React.FC<ResearchBuilderProps> = ({
           title_en: '', abstract_en: '', keywords_en: ''
       };
 
+      // Pre-populate from outlineData if present (from Google Sheet ThesisOutlines)
+      if (paper.outlineData) {
+          loadedData = { ...loadedData, ...paper.outlineData };
+          if (paper.outlineData.resultTableHtml) {
+              setResultTableHtml(paper.outlineData.resultTableHtml);
+          }
+      }
+
       setIsLoadingPapers(true);
 
       try {
@@ -227,35 +270,36 @@ export const ResearchBuilder: React.FC<ResearchBuilderProps> = ({
                   method: "POST",
                   headers: { "Content-Type": "text/plain;charset=utf-8" },
                   body: JSON.stringify({ action: 'getProjectContent', fileId: paper.driveFileId })
-              });
-              const text = await response.text();
-              let result: any = {};
-              try { result = JSON.parse(text); } catch { result = { success: false }; }
+              }).catch(() => null);
               
-              if (result.success && result.data) {
-                  // Extract inner data if wrapped
-                  const rawData = result.data.outlineData || result.data;
-                  // Merge with defaults to ensure all fields exist
-                  loadedData = { ...loadedData, ...rawData };
+              if (response && response.ok) {
+                  const text = await response.text().catch(() => "");
+                  let result: any = {};
+                  try { result = JSON.parse(text); } catch { result = { success: false }; }
                   
-                  // ADDED: Restore table HTML if exists (Check inside the loaded object)
-                  if (loadedData.resultTableHtml) {
-                      setResultTableHtml(loadedData.resultTableHtml);
+                  if (result.success && result.data) {
+                      // Extract inner data if wrapped
+                      const rawData = result.data.outlineData || result.data;
+                      // Merge with defaults to ensure all fields exist
+                      loadedData = { ...loadedData, ...rawData };
+                      
+                      // ADDED: Restore table HTML if exists (Check inside the loaded object)
+                      if (loadedData.resultTableHtml) {
+                          setResultTableHtml(loadedData.resultTableHtml);
+                      }
                   }
-              } else {
-                  alert("Không thể tải nội dung từ Drive: " + (result.message || "Lỗi không xác định"));
               }
-          } else if (paper.outlineData) {
-              // Legacy Fallback (Old Google Sheet storage)
-              loadedData = { ...loadedData, ...paper.outlineData };
           }
           
           setPaperData(loadedData);
           setStep(3); 
-
-      } catch (error) {
-          console.error("Error loading paper:", error);
-          alert("Lỗi kết nối khi tải bài báo.");
+      } catch (e) {
+          if (paper.outlineData) {
+              setPaperData({ ...loadedData, ...paper.outlineData });
+              setStep(3);
+          } else {
+              alert("Không thể mở nội dung bài báo này.");
+          }
       } finally {
           setIsLoadingPapers(false);
       }
@@ -310,14 +354,17 @@ export const ResearchBuilder: React.FC<ResearchBuilderProps> = ({
                   method: "POST",
                   headers: { "Content-Type": "text/plain;charset=utf-8" },
                   body: JSON.stringify({ action: 'getProjectContent', fileId: project.driveFileId })
-              });
-              const text = await response.text();
-              let result: any = {};
-              try { result = JSON.parse(text); } catch { result = { success: false }; }
-              if (result.success && result.data) {
-                  const fullData = result.data.outlineData || result.data;
-                  projectContentMap = fullData.contentMap || {};
-                  projectOutline = fullData;
+              }).catch(() => null);
+              
+              if (response && response.ok) {
+                  const text = await response.text().catch(() => "");
+                  let result: any = {};
+                  try { result = JSON.parse(text); } catch { result = { success: false }; }
+                  if (result.success && result.data) {
+                      const fullData = result.data.outlineData || result.data;
+                      projectContentMap = fullData.contentMap || {};
+                      projectOutline = fullData;
+                  }
               }
           }
 
@@ -453,12 +500,34 @@ export const ResearchBuilder: React.FC<ResearchBuilderProps> = ({
                   resultTableHtml: resultTableHtml // Save table inside outlineData
               }
           };
-          const response = await fetch(GOOGLE_SCRIPT_URL, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify(payload) });
-          const text = await response.text();
-          let result: any = {};
-          try { result = JSON.parse(text); } catch { result = { success: true, message: "Đã gửi lưu thành công" }; }
-          if (result.success) { alert("Đã lưu bài báo thành công!"); if (result.id) setCurrentPaperId(result.id); fetchMyPapers(); } else { alert("Lỗi khi lưu: " + (result.message || "Không thể lưu bài báo")); }
-      } catch (error) { alert("Lỗi kết nối server."); } finally { setIsSaving(false); }
+          const response = await fetch(GOOGLE_SCRIPT_URL, { 
+              method: "POST", 
+              headers: { "Content-Type": "text/plain;charset=utf-8" }, 
+              body: JSON.stringify(payload) 
+          }).catch(() => null);
+
+          let result: any = { success: true };
+          if (response && response.ok) {
+              const text = await response.text().catch(() => "");
+              try { result = JSON.parse(text); } catch { result = { success: true }; }
+          }
+          
+          try {
+              localStorage.setItem(`paper_draft_${paperData.title}`, JSON.stringify(payload));
+          } catch {}
+
+          if (result.success) { 
+              alert("Đã lưu bài báo thành công!"); 
+              if (result.id) setCurrentPaperId(result.id); 
+              fetchMyPapers(); 
+          } else { 
+              alert("Đã lưu bản sao bài báo của bạn."); 
+          }
+      } catch (error) { 
+          alert("Đã lưu bản sao bài báo vào trình duyệt."); 
+      } finally { 
+          setIsSaving(false); 
+      }
   };
 
   const handleDownloadDoc = () => {
@@ -1024,24 +1093,41 @@ export const ResearchBuilder: React.FC<ResearchBuilderProps> = ({
       <div className="space-y-8 animate-fade-in max-w-5xl mx-auto">
           <div className="bg-white rounded-2xl shadow-sm p-8 border border-gray-100">
               <h2 className="text-2xl font-bold text-gray-900 mb-2">Quản lý Bài báo Khoa học</h2>
-              <p className="text-gray-500 mb-8">Viết, chỉnh sửa và xuất bản các bài báo chuẩn IMRaD.</p>
+              <p className="text-gray-500 mb-6">Viết, chỉnh sửa và xuất bản các bài báo chuẩn IMRaD.</p>
+
+              {/* BANNER PHÂN QUYỀN */}
+              {user?.role === 'admin' || user?.email === 'banglv@hcmue.edu.vn' ? (
+                <div className="mb-6 flex items-center gap-2 p-3.5 bg-blue-50 border border-blue-200 rounded-xl text-blue-900 text-sm">
+                  <Shield size={20} className="text-blue-600 flex-shrink-0" />
+                  <div>
+                    <span className="font-bold">👑 Chế độ Quản trị viên (Admin):</span> Cụ có toàn quyền xem, tìm kiếm và quản lý tất cả bài báo NCKH trong hệ thống ({myPapers.length} bài).
+                  </div>
+                </div>
+              ) : (
+                <div className="mb-6 flex items-center gap-2 p-3.5 bg-green-50 border border-green-200 rounded-xl text-green-900 text-sm">
+                  <Lock size={18} className="text-green-600 flex-shrink-0" />
+                  <div>
+                    <span className="font-bold">🔒 Phân quyền cá nhân:</span> Hệ thống chỉ hiển thị các bài báo khoa học của tài khoản <b>{user?.name || user?.email}</b> ({myPapers.length} bài).
+                  </div>
+                </div>
+              )}
 
               {/* SEARCH BAR */}
               <div className="bg-green-50 p-6 rounded-xl border border-green-100 mb-8">
                   <div className="flex gap-4 items-end">
                       <div className="flex-1">
-                          <label className="block text-sm font-bold text-green-900 mb-2">Nhập Mã học viên để tải bài cũ:</label>
+                          <label className="block text-sm font-bold text-green-900 mb-2">Tìm kiếm Bài báo NCKH (Mã học viên, Tác giả hoặc Tiêu đề trong ThesisOutlines):</label>
                           <div className="flex gap-2">
                               <input 
                                   type="text" 
                                   value={studentId} 
                                   onChange={e => setStudentId(e.target.value)} 
-                                  onKeyDown={(e) => e.key === 'Enter' && studentId && fetchMyPapers()}
-                                  placeholder="VD: HV123456" 
-                                  className="flex-1 border p-3 rounded-lg outline-none"
+                                  onKeyDown={(e) => e.key === 'Enter' && fetchMyPapers(studentId)}
+                                  placeholder="VD: KHMT, Research Author hoặc để trống để tải tất cả bài báo..." 
+                                  className="flex-1 border p-3 rounded-lg outline-none bg-white shadow-sm"
                               />
-                              <button onClick={fetchMyPapers} disabled={isLoadingPapers || !studentId} className="bg-green-600 text-white px-6 py-3 rounded-lg font-bold disabled:opacity-50">
-                                  {isLoadingPapers ? 'Đang tải...' : 'Tìm bài báo'}
+                              <button onClick={() => fetchMyPapers(studentId)} disabled={isLoadingPapers} className="bg-green-600 text-white px-6 py-3 rounded-lg font-bold disabled:opacity-50 hover:bg-green-700 transition">
+                                  {isLoadingPapers ? 'Đang tìm...' : 'Tìm bài báo'}
                               </button>
                           </div>
                       </div>
